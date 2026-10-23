@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "everyMin": 360,
+  "apply": true,
+  "minRecords": 40,
+  "window": 300,
+  "step": 0.03,
+  "maxDrift": 0.18,
+  "coldRateHigh": 0.45,
+  "coldRateLow": 0.05,
+  "warmRateLow": 0.12,
+  "keepHistory": 30,
+  "_note": "自进化：每 everyMin 分钟扫最近 window 条回响记录，把 echo 的判定阈值小步挪动（每轮 ≤ step，累计 ≤ maxDrift），并把人工纠错里出现的新说法补进词表。样本少于 minRecords 不动手。apply:false 只预览。改动写在 config/tuning.json，删掉即回默认。",
+  "_example": "这是脱敏样例：请按自己的账号/环境改。个人 QQ 号、好友/群白名单已清空。"
+}

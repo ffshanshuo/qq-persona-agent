@@ -1,0 +1,40 @@
+{
+  "name": "qq-persona-agent",
+  "version": "1.0.0",
+  "description": "QQ persona agent on OneBot v11/NapCat: persistent memory, relationship state, reply self-check, sticker learning, self-tuning rules",
+  "keywords": [
+    "qq",
+    "onebot",
+    "napcat",
+    "chatbot",
+    "llm",
+    "persona",
+    "memory"
+  ],
+  "license": "MIT",
+  "author": "ffshanshuo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ffshanshuo/qq-persona-agent.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node scripts/test-all.js",
+    "test:all": "node scripts/test-all.js --all",
+    "self-test": "node scripts/auto-reply.js --self-test",
+    "start": "node scripts/auto-reply.js",
+    "dry": "AUTOREPLY_DRY=1 node scripts/auto-reply.js"
+  },
+  "files": [
+    "lib/",
+    "scripts/",
+    "config/",
+    "docs/",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {},
+  "devDependencies": {}
+}

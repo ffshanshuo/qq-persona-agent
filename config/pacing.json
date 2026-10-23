@@ -1,0 +1,32 @@
+{
+  "_note": "节奏控制（pacing.js）：打字时长跟字数走、换人聊天要付出「切窗口」时间。改这里不用动代码。",
+  "_说明": {
+    "charsPerSec": "打字速度（字/秒），中文真人大约 2.5~4，越小越慢",
+    "typingBaseMs": "抬手反应时间（毫秒），加在打字时长前面",
+    "typingMinMs/typingMaxMs": "单条消息的「输入中」时长上下限",
+    "jitter": "随机抖动比例（0.25 = ±25%），避免每次都一样长",
+    "switchBaseMs": "切换到另一个人的会话要多久（点列表→找人→点进去）",
+    "switchMaxMs": "切换等待上限（含各种叠加惩罚）",
+    "recentWindowMs": "刚跟别人聊完多久内切回来算「立刻切回」，会多看一会儿未读",
+    "rapidPenaltyMs": "一分钟内在多个会话间切第 3 次起，每次额外加这么多"
+  },
+  "enabled": true,
+  "charsPerSec": 6.5,
+  "typingBaseMs": 350,
+  "typingMinMs": 500,
+  "typingMaxMs": 5000,
+  "jitter": 0.2,
+  "switchBaseMs": 700,
+  "switchMaxMs": 2200,
+  "switchJitter": 0.35,
+  "recentWindowMs": 20000,
+  "recentExtraMs": [
+    200,
+    900
+  ],
+  "rapidCountWindowMs": 60000,
+  "rapidPenaltyMs": 700,
+  "keepSwitches": 200,
+  "_speedNote": "回复要快：打字 6.5 字/秒、上限 5s；切窗口 0.7–2.2s。",
+  "_example": "这是脱敏样例：请按自己的账号/环境改。个人 QQ 号、好友/群白名单已清空。"
+}

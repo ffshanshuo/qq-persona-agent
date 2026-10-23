@@ -1,0 +1,34 @@
+{
+  "_note": "说话的分寸：关系四轴与心情决定「怎么说」。关闭就把 enabled 设 false（不影响其余模块）。",
+  "enabled": true,
+  "friendIntimacy": 0.28,
+  "closeIntimacy": 0.55,
+  "teaseIntimacy": 0.45,
+  "softenTension": 0.3,
+  "tenseTension": 0.6,
+  "_note_maxChars": "不同档位的字数上限；心情低时再乘 lowEnergyFactor",
+  "maxChars": {
+    "distant": 45,
+    "friend": 80,
+    "close": 120
+  },
+  "lowEnergyFactor": 0.7,
+  "petNames": [
+    "宝贝",
+    "亲爱的",
+    "宝宝",
+    "老婆",
+    "老公",
+    "宝",
+    "亲亲",
+    "么么"
+  ],
+  "intimateWords": [
+    "想你",
+    "抱抱",
+    "亲亲",
+    "么么",
+    "爱你"
+  ],
+  "_example": "这是脱敏样例：请按自己的账号/环境改。个人 QQ 号、好友/群白名单已清空。"
+}

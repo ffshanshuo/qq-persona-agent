@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "_note": "表情库：把图片放进 assets/stickers/made/ 或 web/，然后 node scripts/stickers.js add <文件>。库内不带任何图片，避免版权问题。",
+  "stickers": []
+}

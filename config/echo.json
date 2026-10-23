@@ -1,0 +1,20 @@
+{
+  "enabled": true,
+  "warmLatencyMs": 90000,
+  "coldLatencyMs": 21600000,
+  "warmLenRatio": 0.8,
+  "coldLenRatio": 0.3,
+  "warmScore": 0.3,
+  "coldScore": -0.3,
+  "emaAlpha": 0.4,
+  "streakForHint": 2,
+  "padWarm": 0.06,
+  "padCold": -0.1,
+  "arousalWarm": 0.05,
+  "arousalCold": -0.04,
+  "relWarmth": 0.02,
+  "relTrust": 0.015,
+  "keepRecords": 50,
+  "_note": "回响层（echo.js）：根据「TA 回得快不快/话多不多/冷不冷/接不接话题」，反过来调整情绪(PAD)与下一句的语气。冷场不记仇（关系只轻微回撤、不给负值），只是这一轮收着说。warmLatencyMs/coldLatencyMs 是秒回与久回的界；warmLenRatio/coldLenRatio 是字数比；streakForHint=连续几次才在提示里说「TA 有点冷」。",
+  "_example": "这是脱敏样例：请按自己的账号/环境改。个人 QQ 号、好友/群白名单已清空。"
+}

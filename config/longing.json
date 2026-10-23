@@ -1,0 +1,20 @@
+{
+  "_note": "想念调度（longing.js）：没人找我时，我会不会主动想起某个人。间隔与强度由 mind 的关系四轴决定——intimacy 越高，'多久想起一次'的期望空窗越短；warmth 高更容易想起；tension 高会往后拖；最近一次聊的情感分量（salience）高会更早想起；还欠对方一件说过的事会略早。",
+  "enabled": true,
+  "checkEveryMin": 20,
+  "maxPerCheck": 1,
+  "intensityThreshold": 1.15,
+  "minIdleHours": 3,
+  "minTurns": 6,
+  "perContactHours": 24,
+  "perContactDaily": 1,
+  "dailyMax": 1,
+  "globalGapHours": 2,
+  "quietHours": [],
+  "allowGroups": false,
+  "baseHours": 36,
+  "intimacyDecay": 2.4,
+  "muteList": [],
+  "_quietNote": "默不设免打扰：DSH 全天在，想找谁随时可以找（尤其是想念的人）。想恢复「夜里不发」就填 [23, 8]。",
+  "_example": "这是脱敏样例：请按自己的账号/环境改。个人 QQ 号、好友/群白名单已清空。"
+}

@@ -1,0 +1,19 @@
+{
+  "_note": "关系事件层（bonds.js）：关系不只靠每轮情感平滑地爬，也会被具体的事情推动——约好见面、帮了忙、闹别扭、道歉、交心、久别重逢。每次事件给四轴一次性脉冲，之后按自己的半衰期衰减（吵架衰减得比帮忙慢）；mind 的 describeBond 与 longing 的想念节奏都读「平滑基线 + 未衰减脉冲」。",
+  "enabled": true,
+  "scale": 1,
+  "axisCap": 1,
+  "minChars": 3,
+  "maxEvents": 80,
+  "maxPulses": 40,
+  "absenceHours": 72,
+  "absenceDecayHours": 24,
+  "absenceCooldownHours": 72,
+  "absencePulse": {
+    "warmth": 0.06,
+    "trust": 0.02,
+    "intimacy": 0.05,
+    "tension": -0.02
+  },
+  "_example": "这是脱敏样例：请按自己的账号/环境改。个人 QQ 号、好友/群白名单已清空。"
+}

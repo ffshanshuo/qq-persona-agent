@@ -1,0 +1,16 @@
+{
+  "_note": "风控闸门参数。2026-10-23 实测：一天内连环重启十几次 + 主动发消息 → 账号被风控。所有数字都在 scripts/risk.js 的 DEFAULTS 里，改这里即可热加载。",
+  "enabled": true,
+  "loginPerDayMax": 3,
+  "restartPerDayMax": 2,
+  "loginGapMin": 10,
+  "dropWindowMin": 30,
+  "dropThreshold": 2,
+  "coolingHours": 6,
+  "coolingHoursAfterLoginFail": 12,
+  "allowReplyWhileCooling": false,
+  "requirePhoneChannelForProactive": true,
+  "allowProactiveOnClient": true,
+  "_noteProactive": "2026-10-23 用户决定：主动动作也在 C 通道（NapCat）上跑，靠 longing 的频率闸门控量。冷却期仍全停。",
+  "_example": "这是脱敏样例：请按自己的账号/环境改。个人 QQ 号、好友/群白名单已清空。"
+}

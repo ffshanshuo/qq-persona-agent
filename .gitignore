@@ -1,0 +1,39 @@
+# 运行时数据（都会自动生成，不入库）
+logs/
+*.log
+logs/**/*.json
+logs/**/*.jsonl
+
+# 密钥与凭据（绝不入库）
+*.token
+.env
+.env.*
+!.env.example
+config/tuning.json
+config/*.local.json
+api-key
+
+# 表情图片与素材（版权/体积原因不入库；库结构在 assets/stickers/index.json）
+assets/stickers/made/
+assets/stickers/web/
+assets/stickers/custom/
+assets/stickers/*.png
+logs/incoming/
+logs/voice/
+
+# NapCat / 运行环境
+napcat/
+dist/
+node_modules/
+.tmp/
+tmp/
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.bak
+.bad-*
+*.bad-*

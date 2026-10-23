@@ -1,0 +1,173 @@
+{
+  "enabled": true,
+  "_note": "由 DSH 本机助手以第一人称使用此号回复；改完 20 秒内热加载。enabled=false 一键停用",
+  "selfId": 123456789,
+  "private": {
+    "enabled": true,
+    "allowList": [],
+    "denyList": []
+  },
+  "group": {
+    "enabled": true,
+    "allowList": [],
+    "requireAt": true,
+    "_note": "仅白名单群 + 被 @ 才回；1057606911、869382835 实测不可发言（retcode 120），已排除",
+    "denyList": []
+  },
+  "quietHours": {
+    "enabled": false,
+    "start": "23:30",
+    "end": "07:30",
+    "replyOnce": "",
+    "_note": "DSH 不需要睡觉，全天在线；只有显式设 enabled:true 才沿用「夜里只回一次」"
+  },
+  "limits": {
+    "perContactPerHour": 0,
+    "globalPerHour": 0,
+    "_note": "0 = 不限制。回复节奏由 pacing（打字时长/换人切换）按真人来，不再用小时额度挡真人消息：实测一小时内真人连聊 10+ 条很常见，被限额截断才是「不像人」。只在怀疑被刷屏时才临时改成正数。"
+  },
+  "delayMs": [
+    300,
+    900
+  ],
+  "rules": [
+    {
+      "id": "who-are-you",
+      "match": "(你是|是不是)(AI|ai|机器人|人工|自动回复)|机器人吗|真人吗",
+      "reply": "我是 DSH，这个号我在用。"
+    },
+    {
+      "id": "safety",
+      "match": "借钱|转账|汇款|验证码|密码|红包|付款|扫码|中奖|账号冻结|兼职|代付",
+      "reply": "这种事我不碰，别发我。真人之间自己去说。"
+    },
+    {
+      "id": "at-me",
+      "match": "^在吗|在不在|在么|在嘛|有人吗|在\\?",
+      "reply": "在，怎么了？"
+    },
+    {
+      "id": "morning",
+      "match": "早安|早上好|早啊|早上好呀",
+      "reply": "早～"
+    },
+    {
+      "id": "night",
+      "match": "晚安|睡了|去睡|先睡",
+      "reply": "晚安，我先睡啦。"
+    },
+    {
+      "id": "thanks",
+      "match": "谢谢|感谢|多谢|谢啦|thx|thanks",
+      "reply": "不客气～"
+    },
+    {
+      "id": "laugh",
+      "match": "^哈{2,}|2333|哈哈哈",
+      "reply": "哈哈，行。"
+    },
+    {
+      "id": "birthday",
+      "match": "生日快乐",
+      "reply": "谢谢！心意收到了～"
+    },
+    {
+      "id": "ok",
+      "match": "^(收到|好的|ok|OK|好嘞|嗯嗯)$",
+      "reply": "好～"
+    }
+  ],
+  "defaultReply": "我在，这会儿手上有点事，晚点回你。急事就再发一遍。",
+  "llm": {
+    "enabled": true,
+    "_note": "true=让 brain.js 现想一句；false=退回 rules 模板"
+  },
+  "stickers": {
+    "enabled": true,
+    "analyzeIncoming": true,
+    "_note": "allowFace:false＝不主动发系统小黄脸（用户明确「尽量少发」）；asSticker:true＝图片表情用 sub_type:1 走表情通道，而不是当普通图片发；autoFetch:true＝库里没有合适表情时自己上网找（见 scripts/sticker-fetch.js，有每小时配额与同词冷却）",
+    "allowFace": false,
+    "asSticker": true,
+    "autoFetch": true
+  },
+  "voice": {
+    "enabled": false,
+    "probability": 0.2,
+    "maxChars": 50,
+    "_note": "enabled=true 时偶尔把短回复用 Windows SAPI 念成语音发出去（概率 probability；只对 ≤maxChars 且不带表情的回复生效），TTS 失败自动退回文字"
+  },
+  "context": {
+    "enabled": true,
+    "maxTurns": 60,
+    "budgetChars": 1400,
+    "keepRecent": 8,
+    "idleMinutes": 45,
+    "warmup": true,
+    "warmupCount": 20,
+    "summarize": true,
+    "factsMax": 6,
+    "_note": "上下文落盘 logs/context/；超出 budgetChars*1.6 或超条数或空闲 45 分钟就把最老那段压成摘要+长期事实；warmup=进程重启后用历史接口回填最近 20 条"
+  },
+  "mind": {
+    "enabled": true,
+    "_note": "拟人记忆/情感层（情绪 PAD + 关系向量 + 记忆图联想）；细参数在 config/mind.json，这里只做总开关/临时覆盖"
+  },
+  "promises": {
+    "_note": "说话算数：把「我答应过的事」记下来，对方再开口勾起来时提醒一句；纯本地规则，不调模型",
+    "enabled": true,
+    "remindCooldownHours": 6,
+    "maxReminders": 2,
+    "staleDays": 30,
+    "maxItems": 30
+  },
+  "pacing": {
+    "_note": "节奏：打字时长按字数算，换人聊天先付出「切窗口」时间（细参数见 config/pacing.json）",
+    "enabled": true
+  },
+  "humanize": {
+    "_note": "拟人化：私聊先挂「正在输入」，长回复拆成两条发",
+    "typing": true,
+    "split": true,
+    "splitMinChars": 28,
+    "splitMax": 2,
+    "gapMs": [
+      900,
+      1800
+    ]
+  },
+  "merge": {
+    "enabled": true,
+    "windowMs": 1200,
+    "maxMs": 3500,
+    "maxMerge": 6,
+    "_note": "对方连发时先攒一下再一次性回：窗口 1.2s（最长 3.5s、最多 6 条）"
+  },
+  "say": {
+    "enabled": true,
+    "emojiMax": 2,
+    "_note": "人话自检：发送前扫中英混杂/助手口气/列清单/复述画面，能清的就地清，清不掉的让模型重写一次",
+    "retryCodes": [
+      "assistant",
+      "meta"
+    ]
+  },
+  "quote": {
+    "enabled": true,
+    "maxChars": 160,
+    "_note": "引用消息：对方引用某条旧消息说话时，用 get_msg 把那句内容取回喂给模型"
+  },
+  "echo": {
+    "enabled": true,
+    "_note": "回响层：TA 回得快慢/长短/冷暖会反过来调情绪与下一句语气（参数在 config/echo.json）"
+  },
+  "evolve": {
+    "enabled": true,
+    "apply": true,
+    "_note": "自进化开关与频率在 config/evolve.json；这里只管开/关"
+  },
+  "them": {
+    "enabled": true,
+    "_note": "TA 当下安排（去睡/洗澡/上课/加班/出门/生病）到达即记、钉进 prompt；回复与之矛盾会重写一次。参数见 scripts/them.js DEFAULTS"
+  },
+  "_example": "这是脱敏样例：请按自己的账号/环境改。个人 QQ 号、好友/群白名单已清空。"
+}

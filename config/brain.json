@@ -1,0 +1,21 @@
+{
+  "_note": "走本机 DSH 网关 127.0.0.1:8326（OpenAI 兼容），key 在 scripts/gw.token；免费池 2026-10-24 触发 429 额度耗尽后切的",
+  "enabled": true,
+  "baseUrl": "http://127.0.0.1:8326/v1/chat/completions",
+  "models": [
+    "failover-combos/combo:deepseek-v4-1-flash",
+    "failover-combos/combo:glm-5-3-flash"
+  ],
+  "timeoutMs": 6000,
+  "maxTokens": 300,
+  "temperature": 0.9,
+  "historyTurns": 6,
+  "affectMaxTokens": 600,
+  "affectTemperature": 0.1,
+  "memoryMaxTokens": 800,
+  "_note2": "affectMaxTokens 别调小：300 时情感标注的 JSON 会被截断（报 Unexpected end of JSON input / No number after minus sign）；600 实测稳定",
+  "_speedNote": "回复要快：只留两档模型，单次 9s 超时，输出上限 500；慢就是坏体验。",
+  "race": true,
+  "raceDeadlineMs": 7000,
+  "_example": "这是脱敏样例：请按自己的账号/环境改。个人 QQ 号、好友/群白名单已清空。"
+}

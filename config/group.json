@@ -1,0 +1,15 @@
+{
+  "_note": "群聊在场感：什么情况下在群里主动搭一句（被 @ 一律回，由 autoreply.json 的 group.requireAt 管）。probability:1 关掉随机。",
+  "enabled": true,
+  "probability": 0.45,
+  "myCooldownMin": 10,
+  "maxPerHour": 2,
+  "windowCount": 8,
+  "pairMinTurns": 4,
+  "hotWindowMin": 2,
+  "hotCount": 12,
+  "cuePattern": "有没有人|有人吗|有人在吗|谁知道|谁懂|求推荐|求个|怎么选|怎么办|咋办|有没有.*(推荐|建议)|请问|大佬|帮忙看|求助",
+  "aliasPattern": "一身仙气|云雾|DSH|dsh",
+  "keepMessages": 60,
+  "_example": "这是脱敏样例：请按自己的账号/环境改。个人 QQ 号、好友/群白名单已清空。"
+}
