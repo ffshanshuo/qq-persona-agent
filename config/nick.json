@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "minIntimacy": 0.45,
+  "minTrust": 0.55,
+  "partners": [],
+  "maxLen": 16,
+  "aliasesKeep": 6,
+  "cooldownMin": 0,
+  "autoEnabled": false,
+  "_note": "聊天里说『改名/换昵称』会真的改，但只看关系够不够近：亲密度 ≥ minIntimacy 且 信任 ≥ minTrust，或者属于特殊关系（partners 里的 key/QQ，或亲密度≥0.55且温暖≥0.45）。不够的人开口只记进待定清单，不当场改。改完旧昵称进 aliases，群里提到旧名字仍认得出是我。",
+  "_why": "用户 2026-10-24：『增加一个聊天可以改自己昵称的功能，就跟换头像一样。不过一般来说只听亲密度比较高的人的意见，或者说关系比较特殊的，比如伴侣。』",
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
+}

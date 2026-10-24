@@ -21,6 +21,10 @@ const say = require('./say.js');
 const them = require('./them.js'); // 人话自检（发送前扫中英混杂/助手口气/列清单/复述画面） // 历法感（今天周几/节日/时段） // 自我线（我也有自己的事在忙） // 群聊在场感（该不该插话） // 说话的分寸（关系/心情 → 尺度）
 const promises = require('./promises.js');
 const mind = require('./mind.js');
+const avatar = require('./avatar.js'); // 聊天里说「换个头像」→ 立刻换一款
+const follow = require('./follow.js'); // 群聊被 @ 之后，接着那几句话继续听
+const nick = require('./nick.js'); // 聊天里改昵称（只听关系够近的人）
+const quoteStore = require('./quote.js'); // 引用消息：取回被引用那条 + 谁说的/多久前/有没有图
 
 const ROOT = path.join(__dirname, '..');
 const CFG = process.env.AUTOREPLY_CONFIG || path.join(ROOT, 'config', 'autoreply.json');
@@ -31,9 +35,15 @@ if (process.argv.includes('--self-test')) {
 }
 const STATE = process.env.AUTOREPLY_STATE || path.join(ROOT, 'logs', 'autoreply-state.json');
 const INCOMING = process.env.AUTOREPLY_INCOMING || path.join(ROOT, 'logs', 'incoming');
-const TOKEN = fs.readFileSync(path.join(__dirname, 'ob11.token'), 'utf8').trim();
-const WS_URL = `ws://127.0.0.1:3001/?access_token=${encodeURIComponent(TOKEN)}`;
-const SELF_ID = 123456789;
+const TOKEN = (() => {
+  if (process.env.OB11_TOKEN) return String(process.env.OB11_TOKEN).trim();
+  try { return fs.readFileSync(path.join(__dirname, 'ob11.token'), 'utf8').trim(); } catch (e) { return ''; }
+})();
+const WS_URL = process.env.OB11_WS || `ws://127.0.0.1:3001/?access_token=${encodeURIComponent(TOKEN)}`;
+// 自己是谁：优先环境变量，其次配置里的 selfId（开源版没有真实号，别硬编码）
+const SELF_ID = Number(process.env.SELF_UIN || 0) || (() => {
+  try { return Number(JSON.parse(fs.readFileSync(CFG, 'utf8')).selfId) || 0; } catch (e) { return 0; }
+})();
 
 function log(obj, human) {
   try {
@@ -116,23 +126,76 @@ function decide(evt, c = cfg || loadCfg(true)) {
     if (!g.enabled) return { action: 'skip', reason: 'group-disabled' };
     if ((g.allowList || []).length && !(g.allowList || []).map(String).includes(String(evt.group_id)))
       return { action: 'skip', reason: 'group-not-allowed' };
+    const gid = String(evt.group_id);
+    const uin = String(evt.user_id);
+    const gKey = `g:${gid}:u:${uin}`;
     const atMe = hasAtMe(evt.message);
-    if (g.requireAt !== false && !atMe) {
-      // 没 @ 我：交给在场感层判断要不要搭一句（默认保守，不会每条都冒头）
-      const gText = textOf(evt.message);
-      const gNick = (evt.sender && (evt.sender.card || evt.sender.nickname)) || String(evt.user_id);
-      const chime = group.shouldChime(evt.group_id, { text: gText, nick: gNick, uin: evt.user_id, atMe: false, selfId: String(evt.self_id || SELF_ID) });
-      if (!chime.ok) return { action: 'skip', reason: chime.reason };
-      const dd = compose(evt, cfgLocal, `g:${evt.group_id}:u:${evt.user_id}`);
-      if (dd.action !== 'reply') return dd;
-      dd.chime = true;
-      dd.chimeNote = chime.note;
-      dd.noAt = true; // 插话不 @ 人（被点名才 @）
-      return dd;
+    const gText = textOf(evt.message);
+    const gNick = (evt.sender && (evt.sender.card || evt.sender.nickname)) || uin;
+
+    // ① 被 @ 了：一定回，并且开一个「跟随窗口」（用户 2026-10-24 要求）
+    if (atMe) {
+      if (g.follow !== false) { try { follow.open(gid, uin, { nick: gNick }); } catch (e) { log({ event: 'follow-error', where: 'open', err: String(e && e.message) }); } }
+      return compose(evt, cfgLocal, gKey);
     }
-    return compose(evt, cfgLocal, `g:${evt.group_id}:u:${evt.user_id}`);
+
+    // ② 没 @：在跟随窗口里，或这话里点到了我的名字 → 判断是不是还在跟我说
+    const sess = (g.follow !== false) ? follow.active(gid, uin) : null;
+    const names = followNames(cfgLocal);
+    const named = follow.nameHit(gText, names);
+    const mentionOk = g.allowNameMention !== false;
+    if (sess || (named && mentionOk)) {
+      const j = follow.judge({ text: gText, session: sess, names, othersAt: atOthers(evt.message), lastMine: lastMyLine(gid), isQuestion: /[?？]\s*$/.test(gText.trim()) });
+      log({ event: 'follow-judge', key: gKey, session: !!sess, named: named || '', reply: j.reply, score: j.score, why: j.why });
+      if (j.reply) {
+        const dd = compose(evt, cfgLocal, gKey);
+        if (dd.action === 'reply') {
+          if (g.follow !== false) { try { follow.touch(gid, uin); } catch (e) { /* ignore */ } }
+          dd.chime = true;
+          dd.follow = !!sess;
+          dd.chimeNote = j.note;
+          dd.noAt = true; // 顺着话头接，不硬 @ 回去
+        }
+        return dd;
+      }
+      if (sess && g.follow !== false) { try { follow.miss(gid, uin); } catch (e) { /* ignore */ } }
+      // 判不出来就继续走在场感：也许 TA 是在群里问所有人
+    }
+
+    // ③ 剩下的交回在场感层（有人在群里问事、刷屏/两人聊等闸门都在里面）
+    const chime = group.shouldChime(gid, { text: gText, nick: gNick, uin, atMe: false, selfId: String(evt.self_id || SELF_ID) });
+    if (!chime.ok) return { action: 'skip', reason: chime.reason };
+    const dd2 = compose(evt, cfgLocal, gKey);
+    if (dd2.action !== 'reply') return dd2;
+    dd2.chime = true;
+    dd2.chimeNote = chime.note;
+    dd2.noAt = true; // 插话不 @ 人（被点名才 @）
+    return dd2;
   }
   return { action: 'skip', reason: 'unsupported-type' };
+}
+
+/** 群里这条消息 @ 了谁（除我、除 @全体） */
+function atOthers(msg) {
+  return (Array.isArray(msg) ? msg : [])
+    .filter(x => x && x.type === 'at')
+    .map(x => String((x.data && x.data.qq) || ''))
+    .filter(q => q && q !== 'all' && q !== String(SELF_ID));
+}
+
+/** 我在这个群最后说过的一句话（判断「话题还连着」的参照） */
+function lastMyLine(gid) {
+  try {
+    const v = ctxStore.view('g:' + gid);
+    const h = (v && v.history) || [];
+    for (let i = h.length - 1; i >= 0; i--) if (h[i] && h[i].from === 'me') return String(h[i].text || '');
+  } catch (e) { /* ignore */ }
+  return '';
+}
+
+/** 我叫什么：当前昵称 + 旧昵称别名 */
+function followNames(c) {
+  try { return nick.currentNames(); } catch (e) { return ['DSH', '我的昵称']; }
 }
 
 function compose(evt, c, key) {
@@ -193,7 +256,10 @@ function compose(evt, c, key) {
     voices,
     images,
     merged: evt._merge ? evt._merge.n : 1,
-    quoted: Array.isArray(evt.message) ? evt.message.filter(x => x && x.type === 'reply').map(x => x.data && x.data.id).filter(Boolean).map(String) : []
+    quoted: [
+    ...(Array.isArray(evt.message) ? evt.message.filter(x => x && x.type === 'reply').map(x => x.data && x.data.id).filter(Boolean).map(String) : []),
+    ...((evt._merge && Array.isArray(evt._merge.quotes)) ? evt._merge.quotes.map(String) : [])
+  ]
   };
 }
 
@@ -276,7 +342,7 @@ function themSettings() { return { ...them.DEFAULTS, ...((cfgNow().them) || {}) 
 
 function saySettings() { return { ...say.DEFAULTS, ...((cfgNow().say) || {}) }; }
 function echoSettings() { return { ...echo.DEFAULTS, ...((cfgNow().echo) || {}) }; }
-function quoteSettings() { return { enabled: true, maxChars: 160, ...((cfgNow().quote) || {}) }; }
+function quoteSettings() { return { ...quoteStore.DEFAULTS, ...((cfgNow().quote) || {}) }; }
 const pending = new Map(); // key -> { evt, timer, firstAt, ids }
 function mergeKeyOf(evt) {
   if (!evt || evt.post_type !== 'message') return '';
@@ -369,14 +435,8 @@ function textOfAny(msg) {
   }).join('').trim();
 }
 async function fetchQuote(id, maxChars) {
-  const k = String(id);
-  if (quoteCache.has(k)) return quoteCache.get(k);
-  const r = await call('get_msg', { message_id: k });
-  const data = (r && r.data) || {};
-  const txt = textOfAny(data.message || data.raw_message || '').slice(0, maxChars || 160);
-  if (quoteCache.size > 200) quoteCache.clear();
-  quoteCache.set(k, txt || '');
-  return txt || '';
+  const info = await quoteStore.fetchOne(String(id), { call, selfId: SELF_ID, cfg: { maxChars: maxChars || quoteStore.DEFAULTS.maxChars } });
+  return (info && info.text) || '';
 }
 
 function ctxKindOf(d) { return d.target && d.target.type === 'group' ? 'group' : 'private'; }
@@ -928,6 +988,50 @@ async function handle(evt) {
       lastStickerSent.delete(key);
     }
   } catch (e) { log({ event: 'sticker-learn-error', key, err: String((e && e.message) || e).slice(0, 120) }); }
+  // 聊天里说「改名/换昵称」→ 关系够近才改（用户 2026-10-24 要求；只走私聊）
+  if (d.target && d.target.type === 'private' && nick.loadCfg().enabled !== false) {
+    try {
+      const nReq = nick.parseRequest(d.text);
+      if (nReq.hit) {
+        const nDry = process.env.AUTOREPLY_DRY === '1';
+        const r = await nick.suggest({ key, text: d.text, next: nReq.next, dry: nDry, by: 'chat' });
+        log({ event: 'nick-chat', key, want: nReq.next, ok: r.ok, changed: r.changed, why: r.why, perm: r.perm && r.perm.why, rel: r.perm && r.perm.rel }, r.changed ? ('改了昵称：' + r.name) : ('没改：' + (r.why || '')));
+        d.reply = nick.replyText(r);
+        d.stickerSeg = null; d.stickerId = ''; d.voiceWav = null; d.asVoice = false;
+        const ntk = typingTargetOf(d);
+        if (ntk && !nDry) { try { await typingPush(ntk); } catch (e) { /* ignore */ } }
+        let nresp = null;
+        try { nresp = await send(d); } finally { if (ntk && !nDry) typingPop(ntk); }
+        if (nresp && (nresp.status === 'ok' || nresp.dry)) { try { afterSend(d); } catch (e) { /* ignore */ } }
+        try { await mindAfterTurn(key, d, evt, { reply: d.reply, model: 'nick-chat' }, nresp); } catch (e) { /* ignore */ }
+        return;
+      }
+    } catch (e) {
+      log({ event: 'nick-chat-error', key, err: String((e && e.message) || e).slice(0, 160) });
+    }
+  }
+  // 聊天里直接说「换个头像」→ 立刻挑一款换上（用户 2026-10-24 要求；只走私聊）
+  if (d.target && d.target.type === 'private') {
+    try {
+      const avReq = avatar.parseRequest(d.text);
+      if (avReq.hit) {
+        const avDry = process.env.AUTOREPLY_DRY === '1';
+        const r = await avatar.chatTrigger({ key, text: d.text, variant: avReq.variant, dry: avDry });
+        log({ event: 'avatar-chat', key, want: avReq.variant, ok: r.ok, changed: r.changed, variant: r.variant, why: r.why }, r.changed ? ('换了头像：' + r.variant) : ('没换：' + (r.why || '')));
+        d.reply = avatar.replyText(r);
+        d.stickerSeg = null; d.stickerId = ''; d.voiceWav = null; d.asVoice = false;
+        const avTk = typingTargetOf(d);
+        if (avTk && !avDry) { try { await typingPush(avTk); } catch (e) { /* ignore */ } }
+        let resp0;
+        try { resp0 = await send(d); } finally { if (avTk && !avDry) typingPop(avTk); }
+        if (resp0 && (resp0.status === 'ok' || resp0.dry)) afterSend(d);
+        try { await mindAfterTurn(key, d, evt, { reply: d.reply, model: 'avatar-chat' }, resp0); } catch (e) { /* ignore */ }
+        return;
+      }
+    } catch (e) {
+      log({ event: 'avatar-chat-error', key, err: String((e && e.message) || e).slice(0, 160) });
+    }
+  }
   // 消息到达就把「TA 的当下安排」记下来：原文会被上下文压缩吞掉，落盘的状态不会
   if (themSettings().enabled !== false && d && d.text) {
     try {
@@ -948,23 +1052,53 @@ async function handle(evt) {
     note = (note ? note + ' ' : '') + `你刚才不在线（约 ${gapMin >= 120 ? Math.round(gapMin / 60) + ' 小时' : gapMin + ' 分钟'}），这期间 TA 还发过：${brief}。`;
     log({ event: 'offline-missed', key: d.key, count: offlineMissed.length, gapMin });
   }
-  // 对方是「引用/回复」某条消息在说话：把那条的内容取回来喂给模型
+  // 对方是「引用/回复」某条消息在说话：取回被引用那条，并交代「谁说的 / 多久前 / 是不是图」
   if (d.quoted && d.quoted.length && quoteSettings().enabled !== false) {
-    const qid = d.quoted[d.quoted.length - 1];
+    const qs = quoteSettings();
     try {
-      const qt = await fetchQuote(qid, quoteSettings().maxChars);
-      if (qt) {
-        note = (note ? note + ' ' : '') + `对方是在回复/引用这条消息说话：「${qt}」。`;
-        log({ event: 'quote', key: d.key, id: qid, text: qt.slice(0, 120) });
+      const infos = await quoteStore.collect(d.quoted, { call, selfId: SELF_ID, now: Date.now(), cfg: qs });
+      let imageDesc = '';
+      if (qs.analyzeImage !== false && stCfg && stCfg.analyzeIncoming !== false) {
+        const withImg = infos.filter(i => i && i.kinds && i.kinds.includes('image')).slice(0, Math.max(1, Number(qs.imageMax) || 1));
+        for (const qi of withImg) {
+          try {
+            const src = (qi.images && qi.images[0]) || null;
+            if (!src) continue;
+            const file = await localImageOf({ type: 'image', file: src.file, url: src.url });
+            if (!file) continue;
+            const seen = await analyzeIncoming([{ type: 'image', file }]);
+            if (seen) { imageDesc = String(seen).replace(/^对方发来一张图（表情包）[:：]?/, '').slice(0, 60); break; }
+          } catch (e) { log({ event: 'quote-vision-error', key: d.key, err: String(e && e.message).slice(0, 120) }); }
+        }
+      }
+      const qn = quoteStore.noteFor(infos, { nick: d.nick, senderUin: d.target && d.target.id, imageDesc, cfg: qs });
+      const anyHit = infos.some(i => i && !i.empty);
+      if (infos.some(i => i && i.threw)) log({ event: 'quote-error', key: d.key, n: infos.length, why: (infos.find(i => i && i.threw) || {}).error });
+      if (qn) {
+        note = (note ? note + ' ' : '') + qn;
+        log({ event: anyHit ? 'quote' : 'quote-empty', key: d.key, n: infos.length, items: infos.map(i => ({ id: i.id, self: !!i.isSelf, agoMin: i.agoMin, kinds: i.kinds })) });
       } else {
         note = (note ? note + ' ' : '') + '对方是引用着某条旧消息回的（那条内容没取到），别猜它具体是什么。';
-        log({ event: 'quote-empty', key: d.key, id: qid });
+        log({ event: 'quote-empty', key: d.key, n: infos.length });
       }
     } catch (e) { log({ event: 'quote-error', key: d.key, err: String(e && e.message).slice(0, 160) }); }
   }
   // 连发合并过：告诉模型「这是一件事的几句话」，别逐条对答
   if (d.merged && d.merged > 1) {
     note = (note ? note + ' ' : '') + `TA 刚才连着发了几条（${d.merged} 条），合起来是同一件事。别一条一条回、别重复答应同一件事，就这件事像真人那样回一句。`;
+  }
+  // 对方发来的图顺手收进头像候选池（用户 2026-10-24：头像可以换成「别人发的」）
+  if (d.images && d.images.length) {
+    try {
+      const asrc = require('./avatar-src.js');
+      for (const img of d.images.slice(0, 2)) {
+        if (!img || img.type !== 'image') continue;
+        const file = await localImageOf(img);
+        if (!file) continue;
+        const it = asrc.addPeer(file, { from: key });   // addPeer 会复制进池，原始文件留给看图用
+        if (it) log({ event: 'avatar-pool', key, id: it.id, bytes: it.bytes });
+      }
+    } catch (e) { log({ event: 'avatar-pool-error', err: e && e.message }); }
   }
   if (d.images && d.images.length && stCfg.analyzeIncoming !== false) {
     const seen = await analyzeIncoming(d.images);
@@ -1269,7 +1403,8 @@ function connect() {
   ws.onerror = () => { try { ws.close(); } catch (e) { } };
 }
 
-module.exports = { themSettings, echoSettings, typingPush, typingPop, typingTargetOf, decide, inQuietHours, textOf, hasAtMe, handle, dispatch, mergeEvents, mergeable, mergeSettings, flushMerge, fetchQuote, saySettings, analyzeIncoming, buildMessage, send, sendBubble, splitReply, afterSend, mindAfterTurn, promiseSettings, humanizeSettings, lastStickerSent };
+module.exports = {
+  atOthers, lastMyLine, followNames, follow, nick, themSettings, echoSettings, typingPush, typingPop, typingTargetOf, decide, inQuietHours, textOf, hasAtMe, handle, dispatch, mergeEvents, mergeable, mergeSettings, flushMerge, fetchQuote, saySettings, analyzeIncoming, buildMessage, send, sendBubble, splitReply, afterSend, mindAfterTurn, promiseSettings, humanizeSettings, lastStickerSent };
 
 if (require.main === module) {
   const mode = process.argv[2];
@@ -1429,6 +1564,31 @@ if (require.main === module) {
           log({ event: 'evolve-error', err: String((e && e.message) || e).slice(0, 200) });
         }
       }, everyMin * 60000).unref();
+    }
+  }
+  // 头像：默认 enabled=false（不自动换）。打开后按情绪/时段挑款式，受 risk('profile') 闸门与间隔限制。
+  {
+    const avatar = require('./avatar.js');
+    const a0 = avatar.loadCfg();
+    if (a0.enabled) {
+      const everyMin = Math.max(60, (Number(a0.checkEveryHours) || 12) * 60);
+      const tick = async () => {
+        try {
+          // 用自己这条会话的 PAD 状态挑款式（没有就按常规/时段选）
+          let pad = null;
+          try {
+            const st = mind.loadState('p:' + (cfgNow().selfId || SELF_ID));
+            pad = (st && st.pad) || null;
+          } catch (e) { }
+          const r = await avatar.consider({ pad, dry: process.env.AUTOREPLY_DRY === '1' });
+          if (r.changed) log({ event: 'avatar-change', variant: r.variant, why: r.why, file: r.file }, `换了头像：${r.variant}（${r.why}）`);
+          else if (r.why && r.why !== 'disabled') log({ event: 'avatar-skip', why: r.why, variant: r.variant });
+        } catch (e) {
+          log({ event: 'avatar-error', err: String((e && e.message) || e).slice(0, 200) });
+        }
+      };
+      setInterval(tick, everyMin * 60000).unref();
+      setTimeout(tick, 90 * 1000).unref();
     }
   }
   connect();

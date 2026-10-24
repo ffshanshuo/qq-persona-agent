@@ -37,7 +37,7 @@ const DEFAULTS = {
   // 只在「有人在群里问事」或「提到我」时才考虑插话
   cuePattern: '有没有人|有人吗|有人在吗|谁知道|谁懂|求推荐|求个|怎么选|怎么办|咋办|有没有.*(推荐|建议)|请问|大佬|帮忙看|求助',
   // 提到这些词也算在叫我
-  aliasPattern: '我的昵称|云雾|DSH|dsh',
+  aliasPattern: '我的昵称|我的别名|DSH|dsh',
   keepMessages: 60
 };
 

@@ -1,18 +1,20 @@
 {
   "enabled": true,
   "_note": "由 DSH 本机助手以第一人称使用此号回复；改完 20 秒内热加载。enabled=false 一键停用",
-  "selfId": 123456789,
+  "selfId": "123456789",
   "private": {
     "enabled": true,
     "allowList": [],
-    "denyList": []
+    "denyList": [],
+    "_example": "填允许自动回复的 QQ 号；空数组 = 不限制"
   },
   "group": {
     "enabled": true,
     "allowList": [],
     "requireAt": true,
-    "_note": "仅白名单群 + 被 @ 才回；1057606911、869382835 实测不可发言（retcode 120），已排除",
-    "denyList": []
+    "_note": "仅白名单群 + 被 @ 才回；200000003、200000004 实测不可发言（retcode 120），已排除",
+    "denyList": [],
+    "_example": "填允许接话的群号；空数组 = 不接群聊"
   },
   "quietHours": {
     "enabled": false,
@@ -153,8 +155,13 @@
   },
   "quote": {
     "enabled": true,
-    "maxChars": 160,
-    "_note": "引用消息：对方引用某条旧消息说话时，用 get_msg 把那句内容取回喂给模型"
+    "maxChars": 200,
+    "maxQuotes": 2,
+    "ttlHours": 48,
+    "negTtlMin": 10,
+    "analyzeImage": true,
+    "longAgoHours": 6,
+    "_note": "引用消息上下文：把被引用那条取回来，并告诉模型「谁说的/多久前/是不是图片」。analyzeImage=true 时会为被引用的图片多调一次视觉模型（+1~3s），默认关。2026-10-24 用户要求改为 true。"
   },
   "echo": {
     "enabled": true,
@@ -169,5 +176,5 @@
     "enabled": true,
     "_note": "TA 当下安排（去睡/洗澡/上课/加班/出门/生病）到达即记、钉进 prompt；回复与之矛盾会重写一次。参数见 scripts/them.js DEFAULTS"
   },
-  "_example": "这是脱敏样例：请按自己的账号/环境改。个人 QQ 号、好友/群白名单已清空。"
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
 }

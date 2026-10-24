@@ -1,0 +1,67 @@
+{
+  "enabled": true,
+  "_note": "拟人记忆/情感联测专用：dry 发送、只对 123456789 生效、巩固阈值调小以便几轮内触发",
+  "selfId": "123456789",
+  "private": {
+    "enabled": true,
+    "allowList": [],
+    "denyList": [],
+    "_example": "填允许自动回复的 QQ 号；空数组 = 不限制"
+  },
+  "group": {
+    "enabled": false,
+    "allowList": [],
+    "requireAt": true,
+    "denyList": [],
+    "_example": "填允许接话的群号；空数组 = 不接群聊"
+  },
+  "quietHours": {
+    "enabled": false,
+    "start": "23:30",
+    "end": "07:30",
+    "replyOnce": "",
+    "_note": "DSH 不需要睡觉，全天在线；只有显式设 enabled:true 才沿用「夜里只回一次」"
+  },
+  "limits": {
+    "perContactPerHour": 50,
+    "globalPerHour": 50
+  },
+  "delayMs": [
+    10,
+    20
+  ],
+  "rules": [],
+  "defaultReply": "（兜底）",
+  "llm": {
+    "enabled": true
+  },
+  "stickers": {
+    "enabled": false,
+    "analyzeIncoming": false
+  },
+  "voice": {
+    "enabled": false,
+    "probability": 0.2,
+    "maxChars": 50
+  },
+  "context": {
+    "enabled": true,
+    "maxTurns": 40,
+    "budgetChars": 1200,
+    "keepRecent": 6,
+    "idleMinutes": 45,
+    "warmup": true,
+    "warmupCount": 6,
+    "summarize": true,
+    "factsMax": 4
+  },
+  "mind": {
+    "enabled": true,
+    "consolidateEvery": 2,
+    "bootstrapTurns": 2,
+    "trace": true,
+    "injectMax": 5,
+    "threshold": 0.12
+  },
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
+}

@@ -9,6 +9,9 @@ const ROOT = path.join(__dirname, '..');
 
 process.env.QQBOND_DIR = path.join(ROOT, 'logs', 'bonds-test');
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-bonds-test');
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-bonds-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-bonds-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-bonds-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 process.env.QQCTX_DIR = path.join(ROOT, 'logs', 'context-bonds-test');
 
 const bonds = require('./bonds.js');

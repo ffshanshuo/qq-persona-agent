@@ -19,6 +19,9 @@ process.env.AUTOREPLY_LOG = path.join(ROOT, 'logs', 'autoreply-typing-test.log')
 process.env.AUTOREPLY_CONFIG = path.join(ROOT, 'config', 'autoreply.merge-test.json');
 process.env.QQCTX_DIR = path.join(ROOT, 'logs', 'context-typing-test');
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-typing-test');process.env.QQECHO_DIR = path.join(ROOT, 'logs', 'echo-typing-test');
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-typing-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-typing-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-typing-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 
 process.env.QQTRACE_DIR = path.join(ROOT, 'logs', 'trace-typing-test');
 process.env.QQPROMISE_DIR = path.join(ROOT, 'logs', 'promises-typing-test');

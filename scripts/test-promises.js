@@ -5,6 +5,9 @@
  * 运行：node scripts/test-promises.js
  */
 process.env.QQPROMISE_DIR = process.env.QQPROMISE_DIR || require('path').join(__dirname, '..', 'logs', 'promises-test');
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-promises-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-promises-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-promises-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 
 const fs = require('fs');
 const path = require('path');

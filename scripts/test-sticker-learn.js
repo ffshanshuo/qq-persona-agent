@@ -15,6 +15,9 @@ const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'stk-learn-'));
 const SDIR = path.join(TMP, 'stickers');
 fs.mkdirSync(path.join(SDIR, 'made'), { recursive: true });
 process.env.STICKER_DIR = SDIR;
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-sticker-learn-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-sticker-learn-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-sticker-learn-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 process.env.QQSTICKER_BAN = '';
 ['QQCTX_DIR', 'QQMIND_DIR', 'QQLONGING_DIR', 'QQPROMISE_DIR', 'QQBOND_DIR', 'QQECHO_DIR', 'QQTHEM_DIR', 'QQPACING_DIR', 'QQSELF_DIR', 'QQGROUP_DIR']
   .forEach((k) => { process.env[k] = path.join(TMP, k.toLowerCase()); });

@@ -13,6 +13,9 @@ process.env.AUTOREPLY_DRY = '1';
 process.env.AUTOREPLY_CONFIG = path.join(ROOT, 'config', 'autoreply.bond-test.json');
 process.env.QQCTX_DIR = path.join(ROOT, 'logs', 'context-bond-e2e');
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-bond-e2e');process.env.QQECHO_DIR = path.join(ROOT, 'logs', 'echo-bond-e2e');
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-bond-e2e-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-bond-e2e-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-bond-e2e-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 
 process.env.QQTRACE_DIR = path.join(ROOT, 'logs', 'trace-bond-e2e');
 process.env.QQPROMISE_DIR = path.join(ROOT, 'logs', 'promises-bond-e2e');

@@ -42,6 +42,10 @@ const OFFLINE = [
   ['sticker-combo', 'test-sticker-combo.js'],
   ['sticker-fetch', 'test-sticker-fetch.js'],
   ['sticker-learn', 'test-sticker-learn.js'],
+  ['avatar', 'test-avatar.js'],
+  ['avatar-chat', 'test-avatar-chat.js'],
+  ['follow', 'test-follow.js'],
+  ['nick', 'test-nick.js'],
 ];
 
 const ONLINE = [

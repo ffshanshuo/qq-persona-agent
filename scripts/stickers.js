@@ -28,7 +28,7 @@ const CUSTOM = path.join(DIR, 'custom');
 const MADE = path.join(DIR, 'made');
 const INDEX = path.join(DIR, 'index.json');
 const PREP = path.join(ROOT, 'scripts', 'sticker_prep.py');
-const PY = process.env.STICKER_PYTHON || '$HOME/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/python.exe';
+const PY = process.env.STICKER_PYTHON || 'C:/Users/user/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/python.exe';
 
 function ensureDirs() { for (const d of [DIR, CUSTOM, MADE]) fs.mkdirSync(d, { recursive: true }); }
 

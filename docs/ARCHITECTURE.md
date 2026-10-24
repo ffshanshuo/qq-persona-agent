@@ -10,12 +10,13 @@
                         │
         ┌───────────────┼─────────────────────────────────────────────┐
         │ 1 catchupOnce │ 每会话每进程一次：拉历史补离线漏的消息         │
-        │ 2 echo        │ 上一轮我那句 → 对方这句：热络/敷衍/诉苦(+意图)  │
-        │ 3 them        │ 识别「去眯一会儿/在上课/在加班」等当前状态      │
-        │ 4 mind        │ promptBits: mood / bond / memories（联想召回）  │
-        │ 5 promises    │ 命中历史承诺 → 一句话提示（别像催账）           │
-        │ 6 style       │ 关系远近 + 心情 + 回响 → 尺度与 hint            │
-        │ 7 self/clock  │ 「我正在写代码」+「今天周五晚上」               │
+        │ 2 quote       │ 被引用那条取回来：谁说的/多久前/图片还调视觉    │
+        │ 3 echo        │ 上一轮我那句 → 对方这句：热络/敷衍/诉苦(+意图)  │
+        │ 4 them        │ 识别「去眯一会儿/在上课/在加班」等当前状态      │
+        │ 5 mind        │ promptBits: mood / bond / memories（联想召回）  │
+        │ 6 promises    │ 命中历史承诺 → 一句话提示（别像催账）           │
+        │ 7 style       │ 关系远近 + 心情 + 回响 → 尺度与 hint            │
+        │ 8 self/clock  │ 「我正在写代码」+「今天周五晚上」               │
         └───────────────┼─────────────────────────────────────────────┘
                         ▼
                  brain.think()   拼 prompt → 多模型并发抢答（2–3s）
@@ -52,6 +53,10 @@
 | `scripts/promises.js` | 承诺抽取/命中/到期（`resolveDue` → `dueItems` → `dueNote`） | `logs/promises/<slug>.json` |
 | `scripts/longing.js` | 想念调度：`expectedHours` 由亲密度/信任/张力/显著性决定 | `logs/longing/*.json` |
 | `scripts/group.js` | 群聊插话闸门（被@ / 有人求助 / 不是两人私聊 / 不刷屏） | `logs/group/<gid>.json` |
+| `scripts/follow.js` | @ 之后「对话跟随」窗口：不 @ 也判断是不是跟你说、连续冷场两次就闭窗 | `logs/follow/<gid>-<uin>.json` |
+| `scripts/quote.js` | 引用消息解析（谁说的/多久前/含媒体）+ 磁盘缓存（取不到只缓 10 分钟） | `logs/quotes/<id>.json` |
+| `scripts/nick.js` | 聊天里改昵称；按亲密度/信任/伴侣名单授权，不够格只记 pending | `logs/nick/state.json` |
+| `scripts/avatar.js` `avatar-src.js` | 头像池（对方发的图 / 网上找的图）+ 聊天触发 + 间隔与风控闸门 | `assets/avatar-src/`、`logs/avatar/state.json` |
 | `scripts/self.js` | 按时段的「我在做什么」，缓存在进程内 | `logs/self/state.json` |
 | `scripts/clock.js` | 周几/节日/时段，缓存 60s | — |
 | `scripts/them.js` | 对方当前状态（7 类）+ 矛盾检测 | `logs/them/<slug>.json` |

@@ -12,10 +12,14 @@
 //   node scripts/qq.js friends | groups | recent          好友/群/最近会话
 const fs = require('fs');
 const path = require('path');
-const TOKEN = fs.readFileSync(path.join(__dirname, 'ob11.token'), 'utf8').trim();
+const TOKEN = (() => {
+  if (process.env.OB11_TOKEN) return String(process.env.OB11_TOKEN).trim();
+  try { return fs.readFileSync(path.join(__dirname, 'ob11.token'), 'utf8').trim(); } catch (e) { return ''; }
+})();
 const BASE = process.env.OB11_BASE || 'http://127.0.0.1:3000';
 
 async function call(action, params = {}) {
+  if (!TOKEN) throw new Error('缺少 OneBot token：设置 OB11_TOKEN，或把 token 写到 scripts/ob11.token');
   const r = await fetch(BASE + '/' + action, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TOKEN },

@@ -12,5 +12,5 @@
   "requirePhoneChannelForProactive": true,
   "allowProactiveOnClient": true,
   "_noteProactive": "2026-10-23 用户决定：主动动作也在 C 通道（NapCat）上跑，靠 longing 的频率闸门控量。冷却期仍全停。",
-  "_example": "这是脱敏样例：请按自己的账号/环境改。个人 QQ 号、好友/群白名单已清空。"
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
 }

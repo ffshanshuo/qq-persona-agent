@@ -20,6 +20,9 @@
 'use strict';
 
 process.env.QQMIND_DIR = process.env.QQMIND_DIR || require('path').join(__dirname, '..', 'logs', 'mind-test');
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-mind-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-mind-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-mind-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 process.env.QQTRACE_DIR = process.env.QQTRACE_DIR || require('path').join(__dirname, '..', 'logs', 'trace-test');
 process.env.QMIND_CONFIG = process.env.QMIND_CONFIG || require('path').join(__dirname, '..', 'logs', 'mind-test-none.json');
 

@@ -8,6 +8,9 @@ const fs = require('fs');
 const ROOT = path.resolve(__dirname, '..');
 // 隔离：所有状态目录都指向测试目录，别碰生产
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-style-test');
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-style-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-style-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-style-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 process.env.QQTRACE_DIR = path.join(ROOT, 'logs', 'trace-style-test');
 process.env.QQCTX_DIR = path.join(ROOT, 'logs', 'context-style-test');
 process.env.QQPROMISE_DIR = path.join(ROOT, 'logs', 'promises-style-test');

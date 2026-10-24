@@ -1,0 +1,47 @@
+{
+  "enabled": true,
+  "selfId": "123456789",
+  "_note": "离线补账专项测试用配置。只对 100000001（好友A）生效，dry 模式不真发消息。",
+  "private": {
+    "enabled": true,
+    "allowList": [],
+    "denyList": [],
+    "_example": "填允许自动回复的 QQ 号；空数组 = 不限制"
+  },
+  "group": {
+    "enabled": false,
+    "requireAt": true,
+    "allowList": [],
+    "denyList": [],
+    "_example": "填允许接话的群号；空数组 = 不接群聊"
+  },
+  "quietHours": null,
+  "limits": {
+    "perMinute": 50,
+    "perContact": 50,
+    "perContactWindowMin": 10
+  },
+  "delayMs": [
+    10,
+    20
+  ],
+  "llm": {
+    "enabled": true
+  },
+  "stickers": {
+    "enabled": false,
+    "analyzeIncoming": false
+  },
+  "context": {
+    "enabled": true,
+    "maxTurns": 40,
+    "budgetChars": 4000,
+    "keepRecent": 8,
+    "idleMinutes": 45,
+    "warmup": true,
+    "warmupCount": 20,
+    "summarize": true,
+    "factsMax": 4
+  },
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
+}

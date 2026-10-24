@@ -16,5 +16,5 @@
   "relTrust": 0.015,
   "keepRecords": 50,
   "_note": "回响层（echo.js）：根据「TA 回得快不快/话多不多/冷不冷/接不接话题」，反过来调整情绪(PAD)与下一句的语气。冷场不记仇（关系只轻微回撤、不给负值），只是这一轮收着说。warmLatencyMs/coldLatencyMs 是秒回与久回的界；warmLenRatio/coldLenRatio 是字数比；streakForHint=连续几次才在提示里说「TA 有点冷」。",
-  "_example": "这是脱敏样例：请按自己的账号/环境改。个人 QQ 号、好友/群白名单已清空。"
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
 }

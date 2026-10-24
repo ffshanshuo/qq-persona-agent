@@ -1,0 +1,18 @@
+{
+  "enabled": false,
+  "checkEveryHours": 12,
+  "minGapDays": 0,
+  "maxPerMonth": 0,
+  "size": 512,
+  "riskGate": true,
+  "source": "any",
+  "_note": "头像用真实图片：优先「别人发给我的图」，其次上网找（assets/avatar-src 图片池）。用户 2026-10-24 明确：不要月亮脸、解除次数限制，所以 minGapDays/maxPerMonth 都是 0（0=不限）。自动换默认关，聊天里说「换个头像」随时可换；改资料走 risk.gate(profile)，风控冷却期一律不动。",
+  "_srcNote": "图片池：scripts/avatar-src.js（lolicon 公开 API 抓 pixiv 全年龄图；别人发的图由 auto-reply 自动收进来）。处理成 512 方图 PN G 走 scripts/avatar_prep.py（Pillow）。命令：node scripts/avatar-src.js list|fetch|pick|status",
+  "_legacy": "月亮脸 6 款（calm/happy/dusk/rain/sleepy/think）已停用，代码与 assets/avatars/*.png 保留作历史，不再参与换头像。",
+  "chat": {
+    "enabled": true,
+    "cooldownMin": 0,
+    "_note": "聊天触发：私聊里说「换个头像」就换；cooldownMin=0 不防抖（用户要求解除限制），想防抖填分钟数"
+  },
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
+}

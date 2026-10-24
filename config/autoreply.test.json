@@ -1,0 +1,150 @@
+{
+  "enabled": true,
+  "_note": "由 DSH 本机助手以第一人称使用此号回复；改完 20 秒内热加载。enabled=false 一键停用",
+  "selfId": 0,
+  "private": {
+    "enabled": true,
+    "allowList": [],
+    "denyList": [],
+    "_example": "填允许自动回复的 QQ 号；空数组 = 不限制"
+  },
+  "group": {
+    "enabled": false,
+    "allowList": [],
+    "requireAt": true,
+    "_note": "仅白名单群 + 被 @ 才回；200000003、200000004 实测不可发言（retcode 120），已排除",
+    "denyList": [],
+    "_example": "填允许接话的群号；空数组 = 不接群聊"
+  },
+  "quietHours": {
+    "enabled": false,
+    "start": "23:30",
+    "end": "07:30",
+    "replyOnce": "",
+    "_note": "DSH 不需要睡觉，全天在线；只有显式设 enabled:true 才沿用「夜里只回一次」"
+  },
+  "limits": {
+    "perContactPerHour": 0,
+    "globalPerHour": 0,
+    "_note": "0 = 不限制。回复节奏由 pacing（打字时长/换人切换）按真人来，不再用小时额度挡真人消息：实测一小时内真人连聊 10+ 条很常见，被限额截断才是「不像人」。只在怀疑被刷屏时才临时改成正数。"
+  },
+  "delayMs": [
+    300,
+    600
+  ],
+  "rules": [
+    {
+      "id": "who-are-you",
+      "match": "(你是|是不是)(AI|ai|机器人|人工|自动回复)|机器人吗|真人吗",
+      "reply": "我是 DSH，这个号我在用。"
+    },
+    {
+      "id": "safety",
+      "match": "借钱|转账|汇款|验证码|密码|红包|付款|扫码|中奖|账号冻结|兼职|代付",
+      "reply": "这种事我不碰，别发我。真人之间自己去说。"
+    },
+    {
+      "id": "at-me",
+      "match": "^在吗|在不在|在么|在嘛|有人吗|在\\?",
+      "reply": "在，怎么了？"
+    },
+    {
+      "id": "morning",
+      "match": "早安|早上好|早啊|早上好呀",
+      "reply": "早～"
+    },
+    {
+      "id": "night",
+      "match": "晚安|睡了|去睡|先睡",
+      "reply": "晚安，我先睡啦。"
+    },
+    {
+      "id": "thanks",
+      "match": "谢谢|感谢|多谢|谢啦|thx|thanks",
+      "reply": "不客气～"
+    },
+    {
+      "id": "laugh",
+      "match": "^哈{2,}|2333|哈哈哈",
+      "reply": "哈哈，行。"
+    },
+    {
+      "id": "birthday",
+      "match": "生日快乐",
+      "reply": "谢谢！心意收到了～"
+    },
+    {
+      "id": "ok",
+      "match": "^(收到|好的|ok|OK|好嘞|嗯嗯)$",
+      "reply": "好～"
+    }
+  ],
+  "defaultReply": "我在，这会儿手上有点事，晚点回你。急事就再发一遍。",
+  "promises": {
+    "_note": "说话算数：把「我答应过的事」记下来，对方再开口勾起来时提醒一句；纯本地规则，不调模型",
+    "enabled": true,
+    "remindCooldownHours": 6,
+    "maxReminders": 2,
+    "staleDays": 30,
+    "maxItems": 30
+  },
+  "pacing": {
+    "_note": "节奏：打字时长按字数算，换人聊天先付出「切窗口」时间（细参数见 config/pacing.json）",
+    "enabled": true
+  },
+  "humanize": {
+    "_note": "拟人化：私聊先挂「正在输入」，长回复拆成两条发",
+    "typing": true,
+    "split": true,
+    "splitMinChars": 28,
+    "splitMax": 2,
+    "gapMs": [
+      900,
+      1800
+    ]
+  },
+  "merge": {
+    "enabled": true,
+    "windowMs": 2200,
+    "maxMs": 7000,
+    "maxMerge": 6,
+    "_note": "连发合并：同一个人连着发几条时，等对方停下来（窗口 2.2s，最长 7s）合成一件事再想一次，别逐条对答"
+  },
+  "say": {
+    "enabled": true,
+    "emojiMax": 2,
+    "_note": "人话自检：发送前扫中英混杂/助手口气/列清单/复述画面，能清的就地清，清不掉的让模型重写一次"
+  },
+  "quote": {
+    "enabled": true,
+    "maxChars": 200,
+    "maxQuotes": 2,
+    "ttlHours": 48,
+    "negTtlMin": 10,
+    "analyzeImage": false,
+    "longAgoHours": 6,
+    "_note": "引用消息上下文：把被引用那条取回来，并告诉模型「谁说的/多久前/是不是图片」。analyzeImage=true 时会为被引用的图片多调一次视觉模型（+1~3s），默认关。"
+  },
+  "echo": {
+    "enabled": true,
+    "_note": "回响层：TA 回得快慢/长短/冷暖会反过来调情绪与下一句语气（参数在 config/echo.json）"
+  },
+  "evolve": {
+    "enabled": true,
+    "apply": true,
+    "_note": "自进化开关与频率在 config/evolve.json；这里只管开/关"
+  },
+  "them": {
+    "enabled": true,
+    "_note": "TA 当下安排（去睡/洗澡/上课/加班/出门/生病）到达即记、钉进 prompt；回复与之矛盾会重写一次。参数见 scripts/them.js DEFAULTS"
+  },
+  "stickers": {
+    "enabled": true,
+    "analyzeIncoming": true,
+    "allowFace": false,
+    "asSticker": true,
+    "_note": "allowFace:false＝不主动发系统小黄脸（用户明确「尽量少发」）；asSticker:true＝图片表情用 sub_type:1 走表情通道，而不是当普通图片发；autoFetch:true＝库里没有合适表情时自己上网找（见 scripts/sticker-fetch.js，有每小时配额与同词冷却）",
+    "autoFetch": true
+  },
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
+}

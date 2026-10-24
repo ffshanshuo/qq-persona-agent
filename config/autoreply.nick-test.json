@@ -1,0 +1,71 @@
+{
+ "enabled": true,
+ "selfId": 123456789,
+ "private": {
+  "enabled": true,
+  "allowList": [],
+  "denyList": []
+ },
+ "group": {
+  "enabled": false
+ },
+ "limits": {
+  "perContactPerHour": 0,
+  "globalPerHour": 0
+ },
+ "delayMs": [
+  0,
+  0
+ ],
+ "merge": {
+  "enabled": false
+ },
+ "quote": {
+  "enabled": false
+ },
+ "context": {
+  "enabled": false,
+  "warmup": false
+ },
+ "mind": {
+  "enabled": false
+ },
+ "echo": {
+  "enabled": false
+ },
+ "promises": {
+  "enabled": false
+ },
+ "stickers": {
+  "enabled": false,
+  "allowFace": false,
+  "autoFetch": false
+ },
+ "voice": {
+  "enabled": false
+ },
+ "humanize": {
+  "typing": false,
+  "split": false
+ },
+ "pacing": {
+  "enabled": false
+ },
+ "say": {
+  "enabled": false
+ },
+ "them": {
+  "enabled": false
+ },
+ "clock": {
+  "enabled": false
+ },
+ "self": {
+  "enabled": false
+ },
+ "follow": {
+  "enabled": false
+ },
+ "group2": {},
+ "risk": {}
+}

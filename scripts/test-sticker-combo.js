@@ -16,6 +16,9 @@ const SDIR = path.join(TMP, 'stickers');
 fs.mkdirSync(path.join(SDIR, 'custom'), { recursive: true });
 fs.mkdirSync(path.join(SDIR, 'made'), { recursive: true });
 process.env.STICKER_DIR = SDIR;
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-sticker-combo-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-sticker-combo-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-sticker-combo-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 process.env.QQFETCH_DIR = path.join(TMP, 'sticker-fetch');
 process.env.QQSTICKER_BAN = '';
 

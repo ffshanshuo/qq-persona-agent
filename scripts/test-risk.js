@@ -3,6 +3,9 @@
 // risk.js 离线自检（全部用注入的 now，不依赖真实时钟；状态目录隔离到 logs/risk-test）
 const path = require('path');
 process.env.QQRISK_DIR = path.join(__dirname, '..', 'logs', 'risk-test');
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-risk-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-risk-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-risk-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 
 const fs = require('fs');
 const risk = require('./risk.js');

@@ -37,3 +37,7 @@ Thumbs.db
 *.bak
 .bad-*
 *.bad-*
+
+# Python 编译缓存
+__pycache__/
+*.pyc

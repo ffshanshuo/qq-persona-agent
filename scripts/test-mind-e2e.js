@@ -18,6 +18,9 @@ const ROOT = path.join(__dirname, '..');
 
 process.env.AUTOREPLY_CONFIG = process.env.AUTOREPLY_CONFIG || path.join(ROOT, 'config', 'autoreply.mind-test.json');
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-e2e');
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-mind-e2e-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-mind-e2e-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-mind-e2e-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 process.env.QQTRACE_DIR = path.join(ROOT, 'logs', 'trace-e2e');
 process.env.QQCTX_DIR = path.join(ROOT, 'logs', 'context-e2e');
 process.env.QMIND_CONFIG = path.join(ROOT, 'logs', 'mind-e2e-none.json'); // 不读生产 config/mind.json

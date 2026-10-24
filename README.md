@@ -26,6 +26,8 @@
 | 承诺 | `promises.js` | 说好的事记下来，对方提能接上，到日子会主动提 | 0 token |
 | 想念调度 | `longing.js` | 不是定时群发：多久想起你，由亲密度/信任/张力决定 | 1 次调用 |
 | 群聊在场感 | `group.js` | 群里被问事会插一句，但不抢话、不刷屏 | 0 token |
+| 群聊跟随 | `follow.js` | @ 过你之后，接下来不 @ 也接着聊一段；点名也认 | 0 token |
+| 引用上下文 | `quote.js` | 知道它在接哪句话：谁说的、多久前、是不是图，图还能看懂 | 0–1 次视觉调用 |
 | 自我线 | `self.js` | 「在干嘛」有真实答案；不装睡也不秒回 | 0 token |
 | 历法感 | `clock.js` | 知道今天周几、什么节、现在几点，但不会张口报日期 | 0 token |
 | 表情包 | `stickers.js` | 复合情绪（`开心+可爱`）、贴图优先、单独一条气泡、笑不笑从反应里学 | 0 token |
@@ -34,8 +36,9 @@
 | 节奏 | `pacing.js` | 打字时长按字数、换人有「切窗口」延迟 | 0 token |
 | 风控闸门 | `risk.js` | 掉线熔断、登录/重启额度、动作分级（被动回复 vs 主动动作） | 0 token |
 | 自进化 | `evolve.js` | 从真实对话里统计「判冷太频繁」，自己把阈值往回调 | 0 token |
+| 自己管资料 | `avatar*.js` `nick.js` | 聊天里说「换个头像」「改叫星河」就能改；改昵称只听很熟/伴侣的 | 1 次接口调用 |
 
-一次回复会依次经过：**连发合并 → 补账 → 回响 → 记忆召回 → 承诺 → 分寸 → 自我/历法 → 拼 prompt → 模型（并发抢答）→ 人话自检 → 太冲重写 → 表情挑选 → 打字节奏 → 发送**。详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+一次回复会依次经过：**连发合并 → 引用解析 → 补账 → 回响 → 记忆召回 → 承诺 → 分寸 → 自我/历法 → 拼 prompt → 模型（并发抢答）→ 人话自检 → 太冲重写 → 表情挑选 → 打字节奏 → 发送**。详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
 ## 为什么「所有规则都可进化」
 
@@ -100,7 +103,7 @@ AUTOREPLY_DRY=1 node scripts/auto-reply.js   # 演练：只决策和拼段，不
 ## 常用命令
 
 ```bash
-node scripts/test-all.js              # 24 组离线自检（不需要 QQ / 模型）
+node scripts/test-all.js              # 28 组离线自检（不需要 QQ / 模型）
 node scripts/test-all.js --all        # 连在线用例一起（需要 NapCat + 模型）
 
 node scripts/qq.js send <uin> "在吗"          # 直接发一条私聊
@@ -109,6 +112,10 @@ node scripts/qq.js profile --sign "…"        # 改签名
 node scripts/stickers.js list                 # 看表情库
 node scripts/stickers.js pick 委屈             # 试试会挑哪张
 node scripts/sticker-fetch.js fetch 委屈       # 上网抓几张回来入库
+node scripts/quote.js sim <message_id>         # 看一条引用会被怎么念出来
+node scripts/follow.js list                    # 谁现在还在「@ 过你」的窗口里
+node scripts/nick.js sim p:100000001 "以后叫你星河"   # 这个人够不够格给我改名
+node scripts/avatar.js status                  # 头像池与上次更换时间
 node scripts/longing.js list                  # 谁「该被想起」了
 node scripts/risk.js status                   # 风控闸门当前状态
 node scripts/mind.js graph p:100000001        # 看这个人的联想记忆图
@@ -131,7 +138,7 @@ docs/                 架构、风控合规、路线图、历史调研
 node scripts/test-all.js
 ```
 
-24 组、700+ 断言，覆盖：分层上下文与补账、记忆图与巩固、关系事件脉冲衰减、想念公式单调性、承诺准入与到期、分寸降级、语气判定、回响打分、矛盾检测、历法、群聊闸门、自我线、自调参、风控熔断、adb 解析、表情路由/复合/采集/学习。
+28 组、848 断言，覆盖：分层上下文与补账、记忆图与巩固、关系事件脉冲衰减、想念公式单调性、承诺准入与到期、分寸降级、语气判定、回响打分、矛盾检测、历法、群聊闸门与「@ 之后跟随」、改昵称授权、引用消息解析、自我线、自调参、风控熔断、adb 解析、表情路由/复合/采集/学习、头像池与来源。
 
 在线用例（`--all`）会真调模型、真读 NapCat 历史，但**永远 dry 发送**。
 

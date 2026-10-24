@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "windowMin": 8,
+  "extendMin": 5,
+  "maxSessionMin": 40,
+  "maxTurns": 12,
+  "minChars": 2,
+  "replyThreshold": 3,
+  "missLimit": 2,
+  "_note": "被 @ 之后，这个人接着说话（不 @ 也算）会被当成还在跟我聊，窗口 windowMin 分钟；我每回一句续 extendMin 分钟，单次最长 maxSessionMin；连续 missLimit 条判不出来就自然结束。分数满 replyThreshold 才回。",
+  "_why": "用户 2026-10-24：『如果一个人艾特了自己，就算他接下来不艾特，也要根据他说的话识别是不是跟自己说的，也要回复一段时间。』",
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
+}

@@ -10,6 +10,9 @@ process.env.QQSELF_DIR = path.join(ROOT, 'logs', 'self-test');
 process.env.AUTOREPLY_DRY = '1';
 process.env.AUTOREPLY_LOG = path.join(ROOT, 'logs', 'autoreply-self-test.log');
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-self-test');process.env.QQECHO_DIR = path.join(ROOT, 'logs', 'echo-self-test');
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-self-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-self-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-self-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 
 process.env.QQCTX_DIR = path.join(ROOT, 'logs', 'context-self-test');
 process.env.QQTRACE_DIR = path.join(ROOT, 'logs', 'trace-self-test');

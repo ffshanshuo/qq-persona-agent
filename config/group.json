@@ -1,15 +1,12 @@
 {
-  "_note": "群聊在场感：什么情况下在群里主动搭一句（被 @ 一律回，由 autoreply.json 的 group.requireAt 管）。probability:1 关掉随机。",
   "enabled": true,
-  "probability": 0.45,
-  "myCooldownMin": 10,
-  "maxPerHour": 2,
-  "windowCount": 8,
-  "pairMinTurns": 4,
-  "hotWindowMin": 2,
-  "hotCount": 12,
-  "cuePattern": "有没有人|有人吗|有人在吗|谁知道|谁懂|求推荐|求个|怎么选|怎么办|咋办|有没有.*(推荐|建议)|请问|大佬|帮忙看|求助",
-  "aliasPattern": "一身仙气|云雾|DSH|dsh",
-  "keepMessages": 60,
-  "_example": "这是脱敏样例：请按自己的账号/环境改。个人 QQ 号、好友/群白名单已清空。"
+  "allowList": [
+    200000001,
+    200000002
+  ],
+  "follow": true,
+  "allowNameMention": true,
+  "_note": "白名单群内：被 @ 一定回；被 @ 之后这个人继续说话（不 @）会跟随一段时间（见 config/follow.json）；群里点到我的名字也可以决定回不回；剩下才交给在场感随机插话。200000003、200000004 实测不可发言（retcode 120），已排除。",
+  "_changed": "2026-10-24 去掉 requireAt（改由 follow 层判断），用户要求：@ 之后不 @ 也要接着回一段",
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
 }

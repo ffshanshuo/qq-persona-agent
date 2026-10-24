@@ -8,6 +8,9 @@ const path = require('path');
 const fs = require('fs');
 const ROOT = path.join(__dirname, '..');
 process.env.QQPROMISE_DIR = path.join(ROOT, 'logs', 'promises-review');
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-promises-review-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-promises-review-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-promises-review-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 
 const promises = require('./promises.js');
 

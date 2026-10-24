@@ -18,8 +18,13 @@ const LOG = path.join(ROOT, 'logs', 'autoreply-say-test.log');
 process.env.AUTOREPLY_DRY = '1';
 process.env.AUTOREPLY_LOG = LOG;
 process.env.AUTOREPLY_CONFIG = path.join(ROOT, 'config', 'autoreply.merge-test.json');
+process.env.AUTOREPLY_STATE = path.join(ROOT, 'logs', 'state-say-test.json');
+try { require('fs').rmSync(process.env.AUTOREPLY_STATE, { force: true }); } catch (e) { }
 process.env.QQCTX_DIR = path.join(ROOT, 'logs', 'context-say-test');
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-say-test');process.env.QQECHO_DIR = path.join(ROOT, 'logs', 'echo-say-test');
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-say-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-say-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-say-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 
 process.env.QQTRACE_DIR = path.join(ROOT, 'logs', 'trace-say-test');
 process.env.QQPROMISE_DIR = path.join(ROOT, 'logs', 'promises-say-test');
@@ -169,7 +174,7 @@ const evt = (text, extra) => ({
   ar.dispatch(evt('我今天考试考完了'));
   ar.dispatch(evt('但是有点慌'));
   ar.dispatch(evt('感觉没考好'));
-  await sleep(700);
+  await sleep(1600);
   ok('连发只触发一次思考', seen.length === 1, seen.map(x => x.text));
   ok('思考时看到三条合起来的文字', seen.length === 1 && /考试考完了[\s\S]*有点慌[\s\S]*没考好/.test(seen[0].text), seen[0] && seen[0].text);
   ok('note 里明说别逐条回', seen.length === 1 && /连着发了几条/.test(seen[0].note || ''), seen[0] && seen[0].note);

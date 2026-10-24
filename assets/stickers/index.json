@@ -1,5 +1,4 @@
 {
-  "version": 1,
-  "_note": "表情库：把图片放进 assets/stickers/made/ 或 web/，然后 node scripts/stickers.js add <文件>。库内不带任何图片，避免版权问题。",
-  "stickers": []
+  "_note": "表情库索引模板：真实库里是 {items:[...]}，每条含 id/kind/file/emotion/desc/tags。图片请自行收集，本仓库不附带。",
+  "items": []
 }

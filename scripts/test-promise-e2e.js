@@ -16,6 +16,9 @@ process.env.AUTOREPLY_DRY = '1';
 process.env.AUTOREPLY_CONFIG = path.join(ROOT, 'config', 'autoreply.ctx-test.json');
 process.env.QQCTX_DIR = path.join(ROOT, 'logs', 'context-promise-e2e');
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-promise-e2e');process.env.QQECHO_DIR = path.join(ROOT, 'logs', 'echo-promise-e2e');
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-promise-e2e-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-promise-e2e-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-promise-e2e-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 
 process.env.QQTRACE_DIR = path.join(ROOT, 'logs', 'trace-promise-e2e');
 process.env.QQPROMISE_DIR = path.join(ROOT, 'logs', 'promises-promise-e2e');

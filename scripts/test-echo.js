@@ -8,6 +8,9 @@ const fs = require('fs');
 const ROOT = path.resolve(__dirname, '..');
 process.env.QQECHO_DIR = path.join(ROOT, 'logs', 'echo-test');
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-echo-test');
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-echo-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-echo-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-echo-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 process.env.QQTRACE_DIR = path.join(ROOT, 'logs', 'trace-echo-test');
 
 const echo = require('./echo.js');

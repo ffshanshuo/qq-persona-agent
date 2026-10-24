@@ -13,6 +13,9 @@ for (const k of ['QQMIND_DIR', 'QQTRACE_DIR', 'QQCTX_DIR', 'QQPROMISE_DIR', 'QQB
   process.env[k] = path.join(ROOT, 'logs', 'tone-test-' + k.toLowerCase());
 }
 process.env.QQECHO_DIR = path.join(ROOT, 'logs', 'echo-tone-test');
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-tone-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-tone-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-tone-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 process.env.AUTOREPLY_DRY = '1';
 process.env.AUTOREPLY_LOG = path.join(ROOT, 'logs', 'autoreply-tone-test.log');
 process.env.AUTOREPLY_STATE = path.join(ROOT, 'logs', 'autoreply-tone-state.json');

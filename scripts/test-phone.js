@@ -4,6 +4,9 @@
 const path = require('path');
 const fs = require('fs');
 process.env.QQPACING_DIR = path.join(__dirname, '..', 'logs', 'pacing-phone-test');
+process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-phone-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-phone-test';
+process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-phone-test';
+try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 try { fs.rmSync(process.env.QQPACING_DIR, { recursive: true, force: true }); } catch (e) { }
 
 const phone = require('./phone.js');
