@@ -79,7 +79,7 @@
       "reply": "好～"
     }
   ],
-  "defaultReply": "我在，这会儿手上有点事，晚点回你。急事就再发一遍。",
+  "defaultReply": "在的，刚看到。",
   "promises": {
     "_note": "说话算数：把「我答应过的事」记下来，对方再开口勾起来时提醒一句；纯本地规则，不调模型",
     "enabled": true,
@@ -145,6 +145,53 @@
     "asSticker": true,
     "_note": "allowFace:false＝不主动发系统小黄脸（用户明确「尽量少发」）；asSticker:true＝图片表情用 sub_type:1 走表情通道，而不是当普通图片发；autoFetch:true＝库里没有合适表情时自己上网找（见 scripts/sticker-fetch.js，有每小时配额与同词冷却）",
     "autoFetch": true
+  },
+  "mode": {
+    "enabled": true,
+    "_note": "思维模式层的总开关；细参数在 config/mode.json（七类判定 + token 预算 + 反向调权）"
+  },
+  "ties": {
+    "enabled": true,
+    "_note": "关系类型层（恋人唯一性、冷战/分手/复合）。细参数在 config/ties.json；关掉后所有关系按「朋友」处理。"
+  },
+  "presence": {
+    "enabled": true,
+    "_note": "心情状态自动切换（恋爱中/搬砖中/emo中/熬夜中…）。细参数在 config/presence.json；关掉就不动 QQ 的在线状态。"
+  },
+  "murmur": {
+    "enabled": false,
+    "_note": "测试里关掉碎话层：用例需要确定性走模型（否则「嗯」可能被碎话接走，mode-learn 不触发）"
+  },
+  "voice": {
+    "enabled": true,
+    "choice": "model",
+    "probability": 0.2,
+    "maxChars": 80,
+    "_note": "这一句要不要用语音说，默认由 DSH 自己决定（它在回复末尾写 [[语音]]，再由 choice 决定是否采纳）。choice: model=只听模型 | random=按 probability 掷骰子 | off=永不发语音。maxChars=适合说出口的字数上限，超了自动压回文字。TTS 走 config/voice.json 的 edge-tts，失败回落文字。"
+  },
+  "persona": {
+    "enabled": true,
+    "_note": "说话风格层总开关；统计文件与细节参数在 config/persona.json"
+  },
+  "burst": {
+    "enabled": true,
+    "max": 4,
+    "gapMs": [
+      500,
+      1200
+    ],
+    "_note": "连发多条：模型在句间写 [[分条]] 就拆成几条发（每条可单独带 [[语音]]，表情永远是最后单独一条）。max=最多几条（超出的并进最后一条）；gapMs=两条之间的间隔（还会叠加按字数算的打字时间）。"
+  },
+  "busy": {
+    "enabled": false,
+    "kinds": [
+      "focus"
+    ],
+    "delayMin": [
+      2,
+      9
+    ],
+    "_note": "测试里关掉，避免随机延时把用例拖住"
   },
   "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
 }

@@ -6,11 +6,14 @@ const path = require('path');
 const fs = require('fs');
 const ROOT = path.join(__dirname, '..');
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-sweep-live');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-sweep-live-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-sweep-live-test';
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-sweep-live-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-sweep-live-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-sweep-live-test';
 try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 process.env.QQTRACE_DIR = path.join(ROOT, 'logs', 'trace-sweep-live');
 process.env.QMIND_CONFIG = path.join(ROOT, 'logs', 'mind-sweep-live-none.json');
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-sweep-live-' + process.pid + '.json';
 
 const mind = require('./mind.js');
 const brain = require('./brain.js');

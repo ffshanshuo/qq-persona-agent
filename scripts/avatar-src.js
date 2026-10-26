@@ -180,7 +180,7 @@ function pickOne({ prefer = 'any', count = 0, cfg: over } = {}) {
 /** 把图转成 512 方形 PNG（Pillow），返回文件路径 */
 const PY_CANDIDATES = [
   process.env.AVATAR_PY,
-  'C:/Users/user/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/python.exe',
+  '$HOME/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/python.exe',
   'python', 'python3',
 ].filter(Boolean);
 

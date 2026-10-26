@@ -9,6 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
+const net = require('net');
 const { spawn, execSync, execFileSync } = require('child_process');
 const risk = require('./risk.js');
 
@@ -80,6 +81,92 @@ function spawnDetached(args, logName) {
   return p;
 }
 
+
+// ---- 本地 RVC 换声服务端（vendor/rvc-server.py）----
+const RVC_SERVER = path.join(ROOT, 'vendor', 'rvc-server.py');
+const RVC_PY = path.join(ROOT, 'vendor', 'rvc', 'Scripts', 'python.exe');
+
+function rvcConf() {
+  try {
+    const raw = fs.readFileSync(path.join(ROOT, 'config', 'rvc.json'), 'utf8');
+    const c = JSON.parse(raw);
+    if (!c || c.enabled !== true) return null;
+    const m = /:(\d{2,5})/.exec(String(c.baseUrl || ''));
+    return { port: m ? Number(m[1]) : 7898, model: c.model || '' };
+  } catch (e) { return null; }
+}
+
+function spawnPython(script, args, logName) {
+  const out = fs.openSync(path.join(ROOT, 'logs', logName), 'a');
+  const env = { ...process.env };
+  const bin = path.join(ROOT, 'vendor', 'bin');
+  env.PATH = bin + path.pathsep + (env.PATH || '');
+  env.HF_ENDPOINT = env.HF_ENDPOINT || 'https://hf-mirror.com';
+  const p = spawn(RVC_PY, [script, ...args], { detached: true, stdio: ['ignore', out, out], cwd: ROOT, env });
+  p.unref();
+  return p;
+}
+
+function portOpen(port, host = '127.0.0.1', timeoutMs = 1200) {
+  return new Promise((resolve) => {
+    const sock = net.connect({ host, port });
+    const done = (v) => { try { sock.destroy(); } catch (e) { } resolve(v); };
+    sock.setTimeout(timeoutMs, () => done(false));
+    sock.on('connect', () => done(true));
+    sock.on('error', () => done(false));
+  });
+}
+
+async function ensureRvc() {
+  const c = rvcConf();
+  if (!c) return;
+  if (!fs.existsSync(RVC_PY) || !fs.existsSync(RVC_SERVER)) return;
+  if (await portOpen(c.port)) return;
+  spawnPython(RVC_SERVER, ['--host', '127.0.0.1', '--port', String(c.port)], 'rvc-server.log');
+  log('[watchdog] RVC 服务端不在，已拉起（端口 ' + c.port + (c.model ? '，模型 ' + c.model : '') + '）');
+}
+
+// ---- 本地 GPT-SoVITS 零样本克隆服务端（vendor/gsv-server.py）----
+const GSV_SERVER = path.join(ROOT, 'vendor', 'gsv-server.py');
+const GSV_PY = path.join(ROOT, 'vendor', 'gsv310', 'Scripts', 'python.exe');
+// 唯一权威启动脚本：里面写死了用哪套权重（当前 D 组合＝官方 s2 + 我方微调 s1）。
+// 2026-10-26 事故：watchdog 以前直接 spawn python 且不设 GSV_S1/GSV_S2G，
+// 一旦它重启服务端就会变成「纯官方 A」，与人工启动的 D 不一致 —— 必须走同一个脚本。
+const GSV_LAUNCHER = path.join(ROOT, 'vendor', 'start-gsv.cmd');
+
+function gsvConf() {
+  try {
+    const raw = fs.readFileSync(path.join(ROOT, 'config', 'voice.json'), 'utf8');
+    const c = JSON.parse(raw);
+    const g = (c && c.gsv) || {};
+    if (g.enabled !== true) return null;
+    const m = /:(\d{2,5})/.exec(String(g.baseUrl || ''));
+    return { port: m ? Number(m[1]) : 7899, voice: g.voice || '' };
+  } catch (e) { return null; }
+}
+
+async function ensureGsv() {
+  const c = gsvConf();
+  if (!c) return;
+  if (!fs.existsSync(GSV_PY) || !fs.existsSync(GSV_SERVER)) return;
+  if (await portOpen(c.port)) return;
+  // 模型首次加载要 10s 左右，先把进程拉起来，前端请求自己会等
+  const out = fs.openSync(path.join(ROOT, 'logs', 'gsv-server.log'), 'a');
+  const env = { ...process.env };
+  const bin = path.join(ROOT, 'vendor', 'bin');
+  env.PATH = bin + path.pathsep + (env.PATH || '');
+  env.HF_ENDPOINT = env.HF_ENDPOINT || 'https://hf-mirror.com';
+  env.NO_PROXY = '*';
+  for (const k of ['HTTPS_PROXY', 'HTTP_PROXY', 'https_proxy', 'http_proxy', 'ALL_PROXY', 'all_proxy']) delete env[k];
+  // 优先走 start-gsv.cmd（权重组合的唯一来源）；脚本不存在才退回裸 python（退化为纯官方权重）
+  const useLauncher = fs.existsSync(GSV_LAUNCHER);
+  const p = useLauncher
+    ? spawn('cmd.exe', ['/c', GSV_LAUNCHER], { detached: true, stdio: ['ignore', out, out], cwd: ROOT, env })
+    : spawn(GSV_PY, [GSV_SERVER, '--host', '127.0.0.1', '--port', String(c.port)], { detached: true, stdio: ['ignore', out, out], cwd: ROOT, env });
+  p.unref();
+  log('[watchdog] GPT-SoVITS 服务端不在，已拉起（端口 ' + c.port + (c.voice ? '，音色 ' + c.voice : '') + '，启动器 ' + (useLauncher ? 'start-gsv.cmd' : 'python') + '）');
+}
+
 let fails = 0;
 let lastState = null;
 let coolingActive = false;
@@ -119,6 +206,9 @@ async function tick() {
       spawnDetached([path.join(__dirname, 'auto-reply.js')], 'auto-reply-console.log');
       log('[watchdog] auto-reply 不在，已拉起');
     }
+    // 语音换声服务端（懒启动：config/rvc.json 没开就跳过）
+    try { await ensureRvc(); } catch (e) { log('[watchdog] RVC 检查失败：' + e.message); }
+    try { await ensureGsv(); } catch (e) { log('[watchdog] GPT-SoVITS 检查失败：' + e.message); }
     return;
   }
 

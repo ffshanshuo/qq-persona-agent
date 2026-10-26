@@ -71,6 +71,71 @@ function parseJsonLoose(text) {
   }
 }
 
+const ANIM_PROMPT = [
+  '这是同一个 QQ 动图表情包的若干帧，按大括号标注的顺序排列（#序号 与相对首帧的毫秒数）。',
+  '请判断：它在做什么动作、这个动图想表达什么情绪或意思。',
+  '只输出一行 JSON，不要解释，格式：',
+  '{"motion":"25字内说清动作过程（谁/什么在怎么动）","emotion":"一个中文情绪词","desc":"20字内说清这图在聊天里表达什么","tags":["2到5个适用场合短词"]}',
+  'emotion 从这些里选最接近的：开心/大笑/偷笑/得意/无语/白眼/疑惑/震惊/委屈/难过/生气/尴尬/害怕/疲惫/敷衍/赞同/拒绝/道谢/打招呼/晚安/加油/卖萌/吃瓜/催促。',
+].join('\n');
+
+/** 多图一起问（动图用：两张帧拼图同时给模型，才看得出「过程」） */
+async function askVisionMany(files, prompt, { timeoutMs = 60000, maxTokens = 400 } = {}) {
+  const errors = [];
+  const net = require('./net.js');
+  const parts = [{ type: 'text', text: prompt }];
+  for (const f of files) {
+    const mime = mimeOf(f);
+    if (!mime) { errors.push('不支持的图片类型：' + f); continue; }
+    parts.push({ type: 'image_url', image_url: { url: 'data:' + mime + ';base64,' + fs.readFileSync(f).toString('base64') } });
+  }
+  if (parts.length === 1) throw new Error('没有可用的图片：' + errors.join(' | '));
+  for (const model of VISION_MODELS) {
+    const t0 = Date.now();
+    try {
+      const res = await net.postJson(ENDPOINT, {
+        model,
+        reasoning: { enabled: false },
+        stream: false,
+        temperature: 0.2,
+        max_tokens: maxTokens,
+        messages: [{ role: 'user', content: parts }],
+      }, { timeoutMs, headers: gwToken() ? { authorization: 'Bearer ' + gwToken() } : {} });
+      const j = res.json || {};
+      if (j.error) { errors.push(model + ': ' + (j.error.message || 'error')); continue; }
+      if (!res.ok) { errors.push(model + ': HTTP ' + res.status); continue; }
+      const text = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+      if (!text) { errors.push(model + ': empty content'); continue; }
+      return { text: String(text).trim(), model, ms: Date.now() - t0, images: files.length };
+    } catch (e) {
+      errors.push(model + ': ' + e.message);
+    }
+  }
+  throw new Error('视觉模型全部失败：' + errors.join(' | '));
+}
+
+/**
+ * 看动图：先拆帧（sticker_prep --anim），再把多张帧拼图一起给模型。
+ * @returns {{motion:string, emotion:string, desc:string, tags:string[], meta:object, text:string, model:string, ms:number}}
+ */
+async function describeAnimation(file, opts = {}) {
+  const st = require('./stickers.js');
+  const a = st.animSheets(file);
+  const meta = { n_frames: a.n_frames, interval_ms: a.interval_ms, changed_ratio: a.changed_ratio, loops: Boolean(a.loops), picked: a.picked || [] };
+  const r = await askVisionMany(a.sheets || [], ANIM_PROMPT, opts);
+  const j = parseJsonLoose(r.text) || {};
+  return {
+    motion: (j.motion || '').trim() || r.text.slice(0, 60),
+    emotion: (j.emotion || '').trim(),
+    desc: (j.desc || '').trim(),
+    tags: Array.isArray(j.tags) ? j.tags.map(s => String(s).trim()).filter(Boolean).slice(0, 6) : [],
+    meta,
+    text: r.text,
+    model: r.model,
+    ms: r.ms,
+  };
+}
+
 async function askVision(file, prompt, { timeoutMs = 45000, maxTokens = 300 } = {}) {
   const mime = mimeOf(file);
   if (!mime) throw new Error(`不支持的图片类型（视觉模型只吃 png/jpeg）：${file}`);
@@ -143,7 +208,7 @@ async function describeImage(pngFile, opts = {}) {
   };
 }
 
-module.exports = { captionSticker, describeImage, askVision, VISION_MODELS, ENDPOINT };
+module.exports = { captionSticker, describeImage, describeAnimation, askVision, askVisionMany, VISION_MODELS, ENDPOINT, ANIM_PROMPT };
 
 if (require.main === module) {
   const file = process.argv[2];

@@ -7,6 +7,8 @@ const path = require('path');
 const fs = require('fs');
 const ROOT = path.resolve(__dirname, '..');
 process.env.QQGROUP_DIR = path.join(ROOT, 'logs', 'group-test');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-group-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-group-test';
 process.env.AUTOREPLY_DRY = '1';
 process.env.AUTOREPLY_LOG = path.join(ROOT, 'logs', 'autoreply-group-test.log');
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-group-test');process.env.QQECHO_DIR = path.join(ROOT, 'logs', 'echo-group-test');
@@ -18,6 +20,7 @@ process.env.QQCTX_DIR = path.join(ROOT, 'logs', 'context-group-test');
 process.env.QQTRACE_DIR = path.join(ROOT, 'logs', 'trace-group-test');
 process.env.QQPROMISE_DIR = path.join(ROOT, 'logs', 'promises-group-test');
 process.env.QQBOND_DIR = path.join(ROOT, 'logs', 'bonds-group-test');
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-group-' + process.pid + '.json';
 fs.rmSync(process.env.QQGROUP_DIR, { recursive: true, force: true });
 try { fs.rmSync(process.env.AUTOREPLY_LOG, { force: true }); } catch (e) { /* ignore */ }
 

@@ -7,6 +7,8 @@ const path = require('path');
 const fs = require('fs');
 const ROOT = path.resolve(__dirname, '..');
 process.env.AUTOREPLY_DRY = '1';
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-follow-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-follow-test';
 process.env.AUTOREPLY_LOG = path.join(ROOT, 'logs', 'autoreply-follow-test.log');
 process.env.QQGROUP_DIR = path.join(ROOT, 'logs', 'group-follow-test');
 process.env.QQFOLLOW_DIR = path.join(ROOT, 'logs', 'follow-follow-test');
@@ -20,6 +22,7 @@ process.env.QQTRACE_DIR = path.join(ROOT, 'logs', 'trace-follow-test');
 process.env.QQPROMISE_DIR = path.join(ROOT, 'logs', 'promises-follow-test');
 process.env.QQBOND_DIR = path.join(ROOT, 'logs', 'bonds-follow-test');
 process.env.QQTHEM_DIR = path.join(ROOT, 'logs', 'them-follow-test');
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-follow-' + process.pid + '.json';
 for (const k of ['QQGROUP_DIR', 'QQFOLLOW_DIR', 'QQNICK_DIR', 'QQMIND_DIR', 'QQECHO_DIR', 'QQCTX_DIR', 'QQTRACE_DIR', 'QQPROMISE_DIR', 'QQBOND_DIR', 'QQTHEM_DIR']) {
   fs.rmSync(process.env[k], { recursive: true, force: true });
 }

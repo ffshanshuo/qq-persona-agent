@@ -15,6 +15,8 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const TMP = path.join(ROOT, 'logs', 'context-test');
 process.env.QQCTX_DIR = TMP;
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-context-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-context-test';
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-context-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-context-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-context-test';
 try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }

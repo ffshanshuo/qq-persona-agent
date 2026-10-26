@@ -7,6 +7,8 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 
 process.env.QQPROMISE_DIR = path.join(ROOT, 'logs', 'promises-remind-test');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-remind-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-remind-test';
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-remind-test');
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-remind-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-remind-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-remind-test';
@@ -15,6 +17,7 @@ process.env.QQCTX_DIR = path.join(ROOT, 'logs', 'context-remind-test');
 process.env.QQLONGING_DIR = path.join(ROOT, 'logs', 'longing-remind-test');
 process.env.QQBOND_DIR = path.join(ROOT, 'logs', 'bonds-remind-test');
 process.env.AUTOREPLY_LOG = path.join(ROOT, 'logs', 'autoreply-remind-test.log');
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-remind-' + process.pid + '.json';
 
 const fs = require('fs');
 const promises = require('./promises.js');
@@ -73,7 +76,12 @@ function seedSession({ turns = 8, idleHours = 0.2, intimacy = 0.5, warmth = 0.7,
   const got = promises.capture(KEY, { myText: '周末我陪你去爬山，说好了' });
   ok('抽到承诺', got.length === 1, got);
   ok('due 是周末', got[0] && got[0].due === '周末', got[0] && got[0].due);
-  ok('dueAt 落到周六', got[0] && new Date(got[0].dueAt).getDate() === 24, got[0] && new Date(got[0].dueAt).toISOString());
+  // 周末 = 周六/周日当天 10:00（写在周六那天会等于当天；周日跑也应是周日当天，别写死日期）
+  {
+    const d = got[0] && new Date(got[0].dueAt);
+    const away = d ? Math.round((d.getTime() - Date.now()) / 86400e3) : 99;
+    ok('dueAt 落在周末（周六或周日）的 10:00', Boolean(d) && (d.getDay() === 6 || d.getDay() === 0) && d.getHours() === 10 && away <= 7, d && d.toISOString());
+  }
   const noDue = promises.capture(KEY, { myText: '我回头帮你看看那个软件' });
   ok('没有时间词时 dueAt 为空', noDue.length === 1 && !noDue[0].dueAt, noDue);
 

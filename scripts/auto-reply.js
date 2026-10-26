@@ -12,19 +12,25 @@ const stickers = require('./stickers.js');
 const vision = require('./vision.js');
 const ctxStore = require('./context.js');
 const style = require('./style.js');
+const persona = require('./persona.js');
 const echo = require('./echo.js');
+const mode = require('./mode.js'); // 思维模式（这轮该先接情绪 / 给建议 / 讲原理 / 一句带过）
 const risk = require('./risk.js'); // 风控闸门：冷却期/额度受限时禁止发送
 const group = require('./group.js');
 const self = require('./self.js');
 const clock = require('./clock.js');
 const say = require('./say.js');
-const them = require('./them.js'); // 人话自检（发送前扫中英混杂/助手口气/列清单/复述画面） // 历法感（今天周几/节日/时段） // 自我线（我也有自己的事在忙） // 群聊在场感（该不该插话） // 说话的分寸（关系/心情 → 尺度）
+const them = require('./them.js');
+const timeline = require('./timeline.js'); // 时间线（从时间戳算「去洗澡→洗完了 约 10 分钟」） // 人话自检（发送前扫中英混杂/助手口气/列清单/复述画面） // 历法感（今天周几/节日/时段） // 自我线（我也有自己的事在忙） // 群聊在场感（该不该插话） // 说话的分寸（关系/心情 → 尺度）
 const promises = require('./promises.js');
 const mind = require('./mind.js');
-const avatar = require('./avatar.js'); // 聊天里说「换个头像」→ 立刻换一款
 const follow = require('./follow.js'); // 群聊被 @ 之后，接着那几句话继续听
-const nick = require('./nick.js'); // 聊天里改昵称（只听关系够近的人）
-const quoteStore = require('./quote.js'); // 引用消息：取回被引用那条 + 谁说的/多久前/有没有图
+const nick = require('./nick.js'); // 聊天里改昵称（只听关系够近的人）；currentNames 也给群聊跟随用
+const quoteStore = require('./quote.js');
+const forwardStore = require('./forward.js'); // 引用消息：取回被引用那条 + 谁说的/多久前/有没有图
+const ties = require('./ties.js'); // 关系类型（陌生人/朋友/恋人/前任）+ 恋人唯一性 + 冷战分手复合
+const intercepts = require('./intercepts.js'); // 聊天里「直接执行」类指令（换头像 / 改昵称），不过模型
+const timers = require('./timers.js'); // 四个后台定时器（巩固 / 想念 / 自进化 / 头像）
 
 const ROOT = path.join(__dirname, '..');
 const CFG = process.env.AUTOREPLY_CONFIG || path.join(ROOT, 'config', 'autoreply.json');
@@ -203,6 +209,7 @@ function compose(evt, c, key) {
   const has = (t) => Array.isArray(evt.message) && evt.message.some(x => x && x.type === t);
   const media = has('image') || has('mface');
   const voices = has('record');
+  const forwards = Array.isArray(evt.message) ? evt.message.filter(x => x && x.type === 'forward').map(x => x.data && x.data.id).filter(Boolean).map(String) : [];
   const images = Array.isArray(evt.message)
     ? evt.message
         .filter(x => x && (x.type === 'image' || x.type === 'mface'))
@@ -214,8 +221,8 @@ function compose(evt, c, key) {
         }))
         .slice(0, 2)
     : [];
-  // 既没文字也没图也没语音：红包/系统/未知段，不回
-  if (!text && !media && !voices) return { action: 'skip', reason: 'no-text' };
+  // 既没文字也没图也没语音也没有合并转发：红包/系统/未知段，不回
+  if (!text && !media && !voices && !forwards.length) return { action: 'skip', reason: 'no-text' };
   // 对方如果是另一台自动回复的机器人（回复体以「自动回复」开头），不回，避免两边互刷
   if (/^\s*[（(\[【]?\s*自动回复/.test(text)) {
     return { action: 'skip', reason: 'looks-like-bot' };
@@ -251,10 +258,11 @@ function compose(evt, c, key) {
     target: evt.message_type === 'group' ? { type: 'group', id: evt.group_id, at: evt.user_id } : { type: 'private', id: evt.user_id },
     nick: (evt.sender && (evt.sender.card || evt.sender.nickname)) || String(evt.user_id),
     groupId: evt.message_type === 'group' ? evt.group_id : 0,
-    text: text || (voices ? '[发来一条语音]' : '[只发了一个表情包/图片，没配文字]'),
+    text: text || (forwards.length ? '[发来一条聊天记录（合并转发）]' : (voices ? '[发来一条语音]' : '[只发了一个表情包/图片，没配文字]')),
     mediaOnly: !text,
     voices,
     images,
+    forwards,
     merged: evt._merge ? evt._merge.n : 1,
     quoted: [
     ...(Array.isArray(evt.message) ? evt.message.filter(x => x && x.type === 'reply').map(x => x.data && x.data.id).filter(Boolean).map(String) : []),
@@ -288,10 +296,56 @@ function promiseSettings() {
 }
 // 拟人化：打字状态 + 长句拆条
 const HUMANIZE_DEFAULTS = { typing: true, split: true, splitMinChars: 28, splitMax: 2, gapMs: [900, 1800] };
+const BUSY_DEFAULTS = { enabled: false, kinds: ['focus'], delayMin: [2, 9], urgentRe: '急|在吗|在不在|电话|马上|现在就|救命|快回', maxTracked: 500 };
+function busySettings() { return { ...BUSY_DEFAULTS, ...((cfgNow().busy) || {}) }; }
+
 function humanizeSettings() {
   return { ...HUMANIZE_DEFAULTS, ...((cfg && cfg.humanize) || {}) };
 }
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+// 连发多条（2026-10-26 用户要求）：真人常常「一句一句蹦」，还会文字夹语音夹表情
+const BURST_DEFAULTS = { enabled: true, max: 4, gapMs: [500, 1200], marker: '[[分条]]' };
+function burstSettings() {
+  return { ...BURST_DEFAULTS, ...((cfg && cfg.burst) || {}) };
+}
+const SPLIT_MARK = /(?:\[\[\s*(?:分条|换条|下一条|另起一条)\s*\]\]|【\s*分条\s*】|\[\[>>>\]\])/g;
+const BUBBLE_VOICE = /(?:\[\[|［［|【|\[|［)\s*(?:语音|voice|发语音|朗读)\s*(?:\]\]|］］|\】|\]|］)/gi;
+/**
+ * 把一条回复拆成多个气泡。只有模型显式写了 [[分条]] 才拆（避免把正常段落拆碎）。
+ * 每个气泡末尾的 [[语音]] 只作用于它自己那一句。
+ * @returns {Array<{text:string, voice:boolean}>}
+ */
+function parseBurst(text, opts) {
+  const o = { ...BURST_DEFAULTS, ...(opts || {}) };
+  const raw = String(text == null ? '' : text);
+  if (!raw.trim()) return [];
+  const segs = raw.split(SPLIT_MARK).map((x) => x.trim()).filter(Boolean);
+  const max = Math.max(1, Math.min(8, Number(o.max) || 4));
+  const out = [];
+  for (const seg of segs) {
+    const voice = BUBBLE_VOICE.test(seg);
+    BUBBLE_VOICE.lastIndex = 0;
+    const clean = seg.replace(BUBBLE_VOICE, '').replace(/[ \t]{2,}/g, ' ').trim();
+    if (!clean && !voice) continue;
+    out.push({ text: clean, voice });
+  }
+  if (!out.length) return [];
+  if (o.enabled === false) return [{ text: out.map((x) => x.text).filter(Boolean).join(' '), voice: out.some((x) => x.voice) }];
+  if (out.length > max) {
+    // 超出的并进最后一条，别刷屏
+    const head = out.slice(0, max - 1);
+    const tail = out.slice(max - 1);
+    head.push({
+      text: tail.map((x) => x.text).filter(Boolean).join(' '),
+      voice: tail.some((x) => x.voice)
+    });
+    return head;
+  }
+  return out;
+}
+// 碎话：对方只发「嗯」「哦」「？」时，直接回一句短的，不过模型
+function murmurSettings() {
+  return { ...require('./murmur.js').DEFAULTS, ...((cfg && cfg.murmur) || {}) };
+}const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 /**
  * 把一条长回复拆成 2 条（像人打字时想到一半就发）。
@@ -339,9 +393,15 @@ const MERGE_DEFAULTS = { enabled: true, windowMs: 2200, maxMs: 7000, maxMerge: 6
 function cfgNow() { return cfg || loadCfg(); }
 function mergeSettings() { return { ...MERGE_DEFAULTS, ...((cfgNow().merge) || {}) }; }
 function themSettings() { return { ...them.DEFAULTS, ...((cfgNow().them) || {}) }; }
+function tieSettings() { return { ...ties.DEFAULTS, ...((cfgNow().ties) || {}) }; }
+function timelineSettings() { return { ...timeline.DEFAULTS, ...((cfgNow().timeline) || {}) }; }
 
 function saySettings() { return { ...say.DEFAULTS, ...((cfgNow().say) || {}) }; }
 function echoSettings() { return { ...echo.DEFAULTS, ...((cfgNow().echo) || {}) }; }
+function modeSettings() { return { ...mode.DEFAULTS, ...((cfgNow().mode) || {}) }; }
+function personaSettings() { return { ...persona.DEFAULTS, ...((cfgNow().persona) || {}) }; }
+function forwardSettings() { return { ...forwardStore.DEFAULTS, ...((cfgNow().forward) || {}) }; }
+
 function quoteSettings() { return { ...quoteStore.DEFAULTS, ...((cfgNow().quote) || {}) }; }
 const pending = new Map(); // key -> { evt, timer, firstAt, ids }
 function mergeKeyOf(evt) {
@@ -463,7 +523,9 @@ function pushCtxTurn(d, from, text, evt) {
     speaker: from === 'me' ? '' : (d.nick || (evt && evt.user_id ? String(evt.user_id) : '')),
     text: String(text).slice(0, 400),
     kind: ctxKindOf(d),
-    peer: ctxPeerOf(d)
+    peer: ctxPeerOf(d),
+    // real_seq 才是真序号（事件里的 message_seq 恒等于 message_id，不能用来引用）
+    seq: evt && evt.real_seq != null ? String(evt.real_seq) : (evt && evt.message_seq != null && String(evt.message_seq) !== String(evt.message_id) ? String(evt.message_seq) : null)
   });
 }
 async function groupNameOf(gid) {
@@ -584,9 +646,18 @@ async function analyzeIncoming(images) {
     try {
       const local = await localImageOf(img);
       if (!local) { notes.push('对方发来一张图片（没取到原图）'); continue; }
-      const vf = stickers.visionFile(local);
-      const r = await vision.describeImage(vf);
-      notes.push(`对方发来一张图（${r.type}）：${r.desc}`);
+      const animated = /\.(gif|webp)$/i.test(String(local || ''));
+      if (animated && typeof vision.describeAnimation === 'function') {
+        // 动图：拆帧 + 多帧视觉，才能看出「在做什么动作」（2026-10-25 需求）
+        const a = await vision.describeAnimation(local);
+        const m = a.meta || {};
+        const extra = [m.n_frames ? m.n_frames + ' 帧' : '', m.interval_ms ? '约 ' + m.interval_ms + 'ms/帧' : '', m.loops ? '循环' : ''].filter(Boolean).join('，');
+        notes.push(`对方发来一个动图表情包${extra ? '（' + extra + '）' : ''}${a.motion ? '：' + a.motion : ''}${a.emotion ? '（情绪：' + a.emotion + '）' : ''}`);
+      } else {
+        const vf = stickers.visionFile(local);
+        const r = await vision.describeImage(vf);
+        notes.push(`对方发来一张图（${r.type}）：${r.desc}`);
+      }
     } catch (e) {
       notes.push('对方发来一张图片（没识别出来）');
     }
@@ -604,6 +675,8 @@ function buildMessage(d) {
     return only;
   }
   const segs = [];
+  // 主动引用：说清楚「我在接的是哪一条」（NapCat 出站 reply 段，seq 优先于 id）
+  if (d.quoteSeq && d.target && d.target.type !== 'group') segs.push({ type: 'reply', data: { seq: String(d.quoteSeq) } });
   const voiceSeg = d.voiceWav ? { type: 'record', data: { file: String(d.voiceWav).replace(/\\/g, '/') } } : null;
   if (d.target.type === 'group') {
     if (!d.noAt) segs.push({ type: 'at', data: { qq: String(d.target.at) } });
@@ -700,8 +773,23 @@ function typingPop(tk) {
 const sendChains = new Map();
 /** 刚发出去的表情：key → {id, at}，等对方下一句判断好不好笑（表情学习） */
 const lastStickerSent = new Map();
+// 真忙时先搁着的消息（message_id → 记下时间），防止同一条被重复排期
+const busyDeferred = new Map();
+// 上一轮用的是哪种「想」法：等对方回话后，用 TA 的反应回头修这一档的深度偏好
+const lastMode = new Map();
 
 function send(d) {
+  // 最后一道防线：任何路径（含 say-retry / tone-retry / them-retry 的重写结果）里残留的
+  // [表情:xxx] 标记都不许进聊天框——2026-10-24 真事故就是把标记原样发给了对方。
+  if (d && typeof d.reply === 'string' && d.reply) {
+    try {
+      const cleaned = require('./brain.js').stripMarkers(d.reply);
+      if (cleaned !== d.reply) {
+        log({ event: 'marker-stripped', key: d.key, before: d.reply.slice(0, 80), after: cleaned.slice(0, 80) });
+        d.reply = cleaned;
+      }
+    } catch (e) { /* 剥不了也不能拦住发送 */ }
+  }
   const key = (d && d.key) || 'unknown';
   const tk = typingTargetOf(d) || key;
   pendingSends.set(tk, (pendingSends.get(tk) || 0) + 1);
@@ -753,42 +841,78 @@ async function sendOnce(d) {
     log({ event: 'pace-typing', key: d.key, chars: String(d.reply || '').length, ms: typeMs });
     await new Promise(r => setTimeout(r, typeMs));
   }
-  // 说成语音：SAPI 生成 wav（失败就退回文字，不耽误回复）
-  if (d.asVoice && d.reply && !d.voiceWav && process.env.AUTOREPLY_DRY !== '1') {
-    try {
-      const v = require('./voice.js').speakToWav(d.reply, { maxChars: (cfg.voice && cfg.voice.maxChars) || 50 });
-      d.voiceWav = v.path;
-      log({ event: 'tts', key: d.key, chars: v.chars, bytes: v.bytes, ms: v.ms }, `把回复念成语音 ${v.bytes}B`);
-    } catch (e) {
-      log({ event: 'tts-error', key: d.key, err: String(e && e.message).slice(0, 200) });
-    }
-  }
-  // 拟人化①：长回复拆成两条发（中间隔一下，像人想到一半就发出去）
-  if (h.split !== false && !d.voiceWav && d.reply && String(d.reply).length >= (h.splitMinChars || 28)) {
+  // ---- 连发多条：模型在句间写 [[分条]] 就拆成几条发；每条可单独带 [[语音]] ----
+  const burst = burstSettings();
+  const bubbles = parseBurst(d.reply, burst);
+  parts = bubbles.length
+    ? bubbles.map((b, i) => ({
+        ...d,
+        reply: b.text,
+        stickerSeg: null,
+        stickerId: '',
+        voiceWav: null,
+        noAt: i > 0,
+        asVoice: !!(b.voice || (bubbles.length === 1 && d.asVoice))
+      }))
+    : [{ ...d }];
+  // 只有一条气泡时，沿用「长回复自动拆两条」
+  if (parts.length === 1 && h.split !== false && !d.asVoice && d.reply && String(d.reply).length >= (h.splitMinChars || 28)) {
     const pieces = splitReply(d.reply, Math.min(2, h.splitMax || 2));
     if (pieces.length > 1) {
-      parts = pieces.map((text, i) => ({
-        ...d,
-        reply: text,
-        stickerSeg: i === pieces.length - 1 ? d.stickerSeg : null,
-        stickerId: i === pieces.length - 1 ? d.stickerId : '',
-        voiceWav: i === 0 ? d.voiceWav : null,
-        noAt: i > 0
-      }));
-      log({ event: 'split', key: d.key, n: pieces.length, lens: pieces.map(x => x.length) });
+      parts = pieces.map((text, i) => ({ ...d, reply: text, voiceWav: null, asVoice: false, noAt: i > 0 }));
+      log({ event: 'split', key: d.key, n: pieces.length, lens: pieces.map((x) => x.length) });
+    }
+  }
+  // 语音总开关先落实：choice=off / enabled=false 时，气泡级 [[语音]] 也不该生效
+  const voiceOn = (() => {
+    const vc = (cfgNow().voice || {});
+    return vc.enabled !== false && (vc.choice || 'model') !== 'off';
+  })();
+  if (!voiceOn) {
+    for (const piece of parts) piece.asVoice = false;
+  }
+  if (parts.length > 1) {
+    log({
+      event: 'burst', key: d.key, n: parts.length,
+      lens: parts.map((x) => String(x.reply || '').length),
+      voice: parts.filter((x) => x.asVoice).length
+    });
+  }
+  // 每个要「说出口」的气泡单独合成（语音只覆盖它自己那一句，其它仍是文字）
+  if (!dryNow) {
+    for (const piece of parts) {
+      if (!piece.asVoice || !piece.reply || piece.voiceWav) continue;
+      try {
+        const V = require('./voice.js');
+        const sig = piece._voiceSignals || {};
+        const pr = V.prosody.prosodyFor({
+          mood: sig.mood, pad: sig.pad, mode: sig.mode, echo: sig.echo, tie: sig.tie,
+          hour: new Date().getHours()
+        });
+        const vp = V.prosody.voiceFor({ tone: pr.tone, cfg: (cfg.voice || {}), random: Math.random }) || { voice: null, why: 'no-voice-pick' };
+        const _vm = Number(cfg.voice && cfg.voice.maxChars);
+        const v = V.synth(piece.reply, { maxChars: Number.isFinite(_vm) && _vm > 0 ? _vm : 0, prosody: pr, voice: vp.voice });
+        piece.voiceWav = v.path;
+        log({ event: 'voice-prosody', key: d.key, tone: pr.tone, rate: pr.rate, pitch: pr.pitch, volume: pr.volume, why: pr.why, voice: vp.voice, voiceWhy: vp.why });
+        log({ event: 'tts', key: d.key, chars: v.chars, bytes: v.bytes, ms: v.ms, provider: v.provider, voice: v.voice || '', tone: pr.tone, estSec: v.estSec || 0, fellBack: v.fellBack || '' }, `把回复念成语音 ${v.bytes}B（${pr.tone}）`);
+      } catch (e) {
+        log({ event: 'tts-error', key: d.key, err: String(e && e.message).slice(0, 200) });
+        piece.asVoice = false; // 合成失败就退回文字，别发空气泡
+      }
     }
   }
   // 表情包单独一条：文字归文字、表情归表情（对方看到的是「一句话」+「一张表情」两条）
-  if (d.stickerSeg && !d.voiceWav && parts.length) {
-    const hadText = parts.some(p => String(p.reply || '').trim().length > 0);
-    parts = parts.map(p => ({ ...p, stickerSeg: null, stickerId: '' }));
+  if (d.stickerSeg && parts.length) {
+    const hadText = parts.some((x) => String(x.reply || '').trim().length > 0);
+    // 只留「真有内容的」气泡：模型只给了表情标记时 reply 是空串，
+    // 空消息发出去 NapCat 会回 retcode 200，循环里 break，表情就永远发不掉了（2026-10-24 真事故）
+    parts = parts.filter((x) => String(x.reply || '').trim().length > 0 || x.voiceWav || x.asVoice);
     parts.push({
       ...d,
       reply: '',
       stickerSeg: d.stickerSeg,
       stickerId: d.stickerId,
       stickerOnly: true,
-      voiceSeg: null,
       voiceWav: null,
       asVoice: false,
       noAt: hadText
@@ -833,6 +957,11 @@ async function sendOnce(d) {
 /** 发一个气泡：send() 的内部实现（拆条时按条复用）。 */
 async function sendBubble(d) {
   const message = buildMessage(d);
+  // 一个段都没有就别浪费一次 API：空消息在 NapCat 侧是 200/failed，还会把后面的气泡截断
+  if (!message.length) {
+    log({ event: 'empty-bubble', key: d.key, reply: d.reply || '' }, '这条拼出来是空的，跳过');
+    return { status: 'ok', skipped: 'empty' };
+  }
   const hasVoice = message.some(s => s.type === 'record');
   const hasSticker = message.some(s => s.type === 'face' || s.type === 'mface' || s.type === 'image');
   const shown = (d.reply || '') + (hasVoice ? ' [语音]' : '') + (hasSticker ? ' [表情]' : '');
@@ -947,8 +1076,11 @@ function mindAfterTurn(key, d, evt, out, resp) {
   return next;
 }
 
-async function handle(evt) {
+async function handle(evt, opts) {
+  opts = opts || {};
   const _t0 = Date.now(); // 分段计时起点（sent 日志里会带上 think / total）
+  // 每条消息进来先看一眼配置文件有没有被改过（loadCfg 内部按 mtime 判断，没变就直接返回缓存）
+  loadCfg();
   // 自己发出的消息 NapCat 报为 message_sent；统一成 message 交给 decide，靠 user_id===selfId 过滤
   if (evt && evt.post_type === 'message_sent') evt = { ...evt, post_type: 'message' };
   if (!evt || evt.post_type !== 'message') return;
@@ -971,7 +1103,26 @@ async function handle(evt) {
     return;
   }
   const offlineMissed = await catchupOnce(d); // 冷启动回填 + 离线补账（每个会话只做一次）
-  pushCtxTurn(d, 'them', d.text, evt);
+  // 合并转发：只给四个字「[合并转发]」等于没看见，得再调 get_forward_msg 把它拆开（用户 2026-10-24 要求）
+  if (d.forwards && d.forwards.length) {
+    const fsCfg = forwardSettings();
+    if (fsCfg.enabled !== false) {
+      try {
+        const fw = await forwardStore.collect(d.forwards, { call, selfId: SELF_ID, now: Date.now(), cfg: fsCfg, nick: d.nick });
+        if (fw.anyHit) {
+          d.forwardNote = fw.note;
+          d.forwardText = fw.items.map(it => forwardStore.briefOf(it, { cfg: fsCfg })).join(' ');
+          log({ event: 'forward', key: ctxKeyOf(d), ids: d.forwards.length, total: fw.total, nested: fw.nested }, '展开合并转发 ' + fw.total + ' 条');
+        } else {
+          d.forwardNote = '对方转发了一条聊天记录，但内容没取到（可能过期或撤回了）——别猜里面写了什么，可以说一句「这条我这边打不开」。';
+          log({ event: 'forward-empty', key: ctxKeyOf(d), ids: d.forwards.length, why: fw.why });
+        }
+      } catch (e) {
+        log({ event: 'forward-error', key: ctxKeyOf(d), err: String((e && e.message) || e).slice(0, 160) });
+      }
+    }
+  }
+  pushCtxTurn(d, 'them', d.text + (d.forwardText ? ' ' + d.forwardText : ''), evt);
   const key = ctxKeyOf(d);
   // 上一条表情发出去后对方的反应：笑/夸 = 加分，嫌弃/「别发」= 减分（学习，不花 token）
   try {
@@ -988,48 +1139,21 @@ async function handle(evt) {
       lastStickerSent.delete(key);
     }
   } catch (e) { log({ event: 'sticker-learn-error', key, err: String((e && e.message) || e).slice(0, 120) }); }
-  // 聊天里说「改名/换昵称」→ 关系够近才改（用户 2026-10-24 要求；只走私聊）
-  if (d.target && d.target.type === 'private' && nick.loadCfg().enabled !== false) {
-    try {
-      const nReq = nick.parseRequest(d.text);
-      if (nReq.hit) {
-        const nDry = process.env.AUTOREPLY_DRY === '1';
-        const r = await nick.suggest({ key, text: d.text, next: nReq.next, dry: nDry, by: 'chat' });
-        log({ event: 'nick-chat', key, want: nReq.next, ok: r.ok, changed: r.changed, why: r.why, perm: r.perm && r.perm.why, rel: r.perm && r.perm.rel }, r.changed ? ('改了昵称：' + r.name) : ('没改：' + (r.why || '')));
-        d.reply = nick.replyText(r);
-        d.stickerSeg = null; d.stickerId = ''; d.voiceWav = null; d.asVoice = false;
-        const ntk = typingTargetOf(d);
-        if (ntk && !nDry) { try { await typingPush(ntk); } catch (e) { /* ignore */ } }
-        let nresp = null;
-        try { nresp = await send(d); } finally { if (ntk && !nDry) typingPop(ntk); }
-        if (nresp && (nresp.status === 'ok' || nresp.dry)) { try { afterSend(d); } catch (e) { /* ignore */ } }
-        try { await mindAfterTurn(key, d, evt, { reply: d.reply, model: 'nick-chat' }, nresp); } catch (e) { /* ignore */ }
-        return;
-      }
-    } catch (e) {
-      log({ event: 'nick-chat-error', key, err: String((e && e.message) || e).slice(0, 160) });
-    }
-  }
-  // 聊天里直接说「换个头像」→ 立刻挑一款换上（用户 2026-10-24 要求；只走私聊）
-  if (d.target && d.target.type === 'private') {
-    try {
-      const avReq = avatar.parseRequest(d.text);
-      if (avReq.hit) {
-        const avDry = process.env.AUTOREPLY_DRY === '1';
-        const r = await avatar.chatTrigger({ key, text: d.text, variant: avReq.variant, dry: avDry });
-        log({ event: 'avatar-chat', key, want: avReq.variant, ok: r.ok, changed: r.changed, variant: r.variant, why: r.why }, r.changed ? ('换了头像：' + r.variant) : ('没换：' + (r.why || '')));
-        d.reply = avatar.replyText(r);
-        d.stickerSeg = null; d.stickerId = ''; d.voiceWav = null; d.asVoice = false;
-        const avTk = typingTargetOf(d);
-        if (avTk && !avDry) { try { await typingPush(avTk); } catch (e) { /* ignore */ } }
-        let resp0;
-        try { resp0 = await send(d); } finally { if (avTk && !avDry) typingPop(avTk); }
-        if (resp0 && (resp0.status === 'ok' || resp0.dry)) afterSend(d);
-        try { await mindAfterTurn(key, d, evt, { reply: d.reply, model: 'avatar-chat' }, resp0); } catch (e) { /* ignore */ }
-        return;
-      }
-    } catch (e) {
-      log({ event: 'avatar-chat-error', key, err: String((e && e.message) || e).slice(0, 160) });
+  // 聊天里一句话能直接执行的指令（换头像 / 改昵称）：听懂就做，不过模型（用户 2026-10-24 要求）
+  // 只走私聊；识别/执行/回执在 intercepts.js，这里只负责发出去、记账、写进记忆。
+  {
+    const dry0 = process.env.AUTOREPLY_DRY === '1';
+    const hit = await intercepts.tryRun(d, { key, dry: dry0, log, murmur: murmurSettings(), random: Math.random });
+    if (hit) {
+      d.reply = hit.reply;
+      d.stickerSeg = null; d.stickerId = ''; d.voiceWav = null; d.asVoice = false;
+      const itk = typingTargetOf(d);
+      if (itk && !dry0) { try { await typingPush(itk); } catch (e) { /* ignore */ } }
+      let iresp = null;
+      try { iresp = await send(d); } finally { if (itk && !dry0) typingPop(itk); }
+      if (iresp && (iresp.status === 'ok' || iresp.dry)) { try { afterSend(d); } catch (e) { /* ignore */ } }
+      try { await mindAfterTurn(key, d, evt, { reply: d.reply, model: hit.model }, iresp); } catch (e) { /* ignore */ }
+      return;
     }
   }
   // 消息到达就把「TA 的当下安排」记下来：原文会被上下文压缩吞掉，落盘的状态不会
@@ -1087,6 +1211,9 @@ async function handle(evt) {
   if (d.merged && d.merged > 1) {
     note = (note ? note + ' ' : '') + `TA 刚才连着发了几条（${d.merged} 条），合起来是同一件事。别一条一条回、别重复答应同一件事，就这件事像真人那样回一句。`;
   }
+  if (d.forwardNote) {
+    note = (note ? note + ' ' : '') + d.forwardNote;
+  }
   // 对方发来的图顺手收进头像候选池（用户 2026-10-24：头像可以换成「别人发的」）
   if (d.images && d.images.length) {
     try {
@@ -1109,6 +1236,40 @@ async function handle(evt) {
   }
   if (note) note += '（你确实看见了它，但别像解说员那样复述画面，就当自己收到这么个表情/图，自然接一句）';
   if (d.voices) note += '（语音也一样：别编造语音里说了什么，可以自然地说「你发语音啦，我这边没声儿」之类）';
+  // 真忙就别秒回「我手上有事，晚点回你」——真人忙着的时候根本不回，等腾出手才看到消息。
+  // 这里只做一件事：把这条消息往后放几分钟（日志 busy-defer），到点再走正常流程（模型照常想怎么回）。
+  {
+    const bz = busySettings();
+    const dryNow = process.env.AUTOREPLY_DRY === '1';
+    if (bz.enabled !== false && !dryNow && !opts.fromDefer) {
+      let st = null;
+      try { st = self.state(); } catch (e) { st = null; }
+      const kind = st && st.kind;
+      const urgentRe = bz.urgentRe ? new RegExp(bz.urgentRe) : null;
+      const urgent = urgentRe ? urgentRe.test(d.text || '') : false;
+      if (!urgent && kind && (Array.isArray(bz.kinds) ? bz.kinds : ['focus']).includes(kind)) {
+        const mid = String((evt && evt.message_id) || '') || (d.key + ':' + (d.text || '').slice(0, 20));
+        if (!busyDeferred.has(mid)) {
+          const [lo, hi] = Array.isArray(bz.delayMin) ? bz.delayMin : [2, 9];
+          const mins = lo + Math.random() * Math.max(0, hi - lo);
+          const ms = Math.round(mins * 60000);
+          busyDeferred.set(mid, Date.now());
+          if (busyDeferred.size > (Number(bz.maxTracked) || 500)) {
+            const oldest = busyDeferred.keys().next();
+            if (!oldest.done) busyDeferred.delete(oldest.value);
+          }
+          log({ event: 'busy-defer', key, kind, activity: (st && st.activity) || '', mins: Math.round(mins * 10) / 10, urgent });
+          setTimeout(() => {
+            busyDeferred.delete(mid);
+            // 同一条消息再来一次会被 message_id 去重挡掉，先把标记摘掉再走正常流程
+            if (evt && evt.message_id != null) seen.delete(evt.message_id);
+            handle(evt, { fromDefer: true }).catch((e) => log({ event: 'busy-defer-error', key, err: String((e && e.message) || e).slice(0, 160) }));
+          }, ms).unref();
+          return { deferred: true, key, mins: Math.round(mins * 10) / 10 };
+        }
+      }
+    }
+  }
   let out = null;
   if (d.useBrain) {
     try {
@@ -1137,6 +1298,17 @@ async function handle(evt) {
       }
     } catch (e) { log({ event: 'them-error', key, err: String((e && e.message) || e).slice(0, 160) }); }
   }
+  // 时间线：从时间戳里算「去洗澡→洗完了 约 10 分钟」这类常识，并留痕
+  if (timelineSettings().enabled !== false) {
+    try {
+      const tl = timeline.noteFor(key);
+      if (tl && tl.note) {
+        ctx.timelineNote = tl.note;
+        timeline.remember(key, tl.spans);
+        log({ event: 'timeline', key, n: tl.spans.length, last: tl.spans[0] ? tl.spans[0].label + ' ' + tl.spans[0].minutes + 'min' : '' });
+      }
+    } catch (e) { log({ event: 'timeline-error', key, err: String((e && e.message) || e).slice(0, 160) }); }
+  }
   // 回响层：TA 这条回得怎么样（快慢/长短/冷暖/接不接话题），反过来调情绪与下一句的语气
       if (echoSettings().enabled !== false) {
         try {
@@ -1150,6 +1322,14 @@ async function handle(evt) {
           d._echo = res;
           if (res && res.note) ctx.note = (ctx.note ? ctx.note + ' ' : '') + res.note;
           log({ event: 'echo', key, kind: res.kind, score: res.score, ema: res.ema, cold: res.streakCold, warm: res.streakWarm, why: res.why.slice(0, 3) });
+          // 思维模式的反向调节：上一轮那个「想」法换来的是热还是冷，回头微调它的深度偏好
+          try {
+            const prev = lastMode.get(key);
+            if (prev && prev.mode && (res.kind === 'warm' || res.kind === 'cold') && modeSettings().learnFromReaction !== false) {
+              const lr = mode.learn(key, { mode: prev.mode, kind: res.kind }, modeSettings());
+              log({ event: 'mode-learn', key, mode: prev.mode, kind: res.kind, bias: lr.bias, n: lr.n, good: lr.good, bad: lr.bad });
+            }
+          } catch (e) { log({ event: 'mode-learn-error', key, err: String((e && e.message) || e).slice(0, 160) }); }
           if (mindOn && (res.kind === 'warm' || res.kind === 'cold')) {
             try { mind.nudge(key, echo.affectDelta(res)); } catch (e) { log({ event: 'echo-nudge-error', key, err: String(e && e.message).slice(0, 160) }); }
           }
@@ -1168,6 +1348,24 @@ async function handle(evt) {
           log({ event: 'mind-recall-error', key, err: String(e && e.message).slice(0, 200) });
         }
       }
+      // 关系类型：恋人/前任/冷战——只由「对方明确表达」推动，DSH 绝不自己宣布身份
+      if (tieSettings().enabled !== false) {
+        try {
+          const stv = (d._mindBits && d._mindBits.state) || null;
+          const tr = ties.observe(key, {
+            text: d.text,
+            rel: (stv && stv.rel) || {},
+            uin: d.target && d.target.id,
+            now: Date.now(),
+            cfg: tieSettings()
+          });
+          d._tie = tr;
+          if (tr.changed) log({ event: 'tie', key, from: tr.from, to: tr.to, why: tr.why }, `关系变了：${tr.from} → ${tr.to}`);
+          if (tr.conflict) log({ event: 'ties-conflict', key, why: tr.why, note: tr.note });
+          if (tr.note) ctx.tieNote = tr.note;
+          if (tr.conflict && tr.note) ctx.note = (ctx.note ? ctx.note + ' ' : '') + tr.note;
+        } catch (e) { log({ event: 'tie-error', key, err: String(e && e.message).slice(0, 160) }); }
+      }
       // 说话算数：这句勾起了以前答应过谁的事？
       if (promiseSettings().enabled !== false) {
         try {
@@ -1185,8 +1383,14 @@ async function handle(evt) {
       // 说话的分寸：mind 的状态层 → 档位/可否玩笑/字数上限；不知道该按什么算时按「聊得来的朋友」
       try {
         const stt = (d._mindBits && d._mindBits.state) || null;
-        d._style = style.styleOf(stt ? { rel: stt.rel, pad: stt.pad, echo: d._echo } : { rel: { intimacy: 0.32, warmth: 0.5, tension: 0 }, echo: d._echo });
+        d._style = style.styleOf(stt ? { rel: stt.rel, pad: stt.pad, echo: d._echo, tie: ties.styleHint(key) } : { rel: { intimacy: 0.32, warmth: 0.5, tension: 0 }, echo: d._echo, tie: ties.styleHint(key) });
         if (d._style && d._style.hint) ctx.style = d._style.hint;
+        try { ctx.habits = style.habitHint(key); } catch (e) { /* ignore */ }
+        // 说话风格：从满穗语料统计出来的句长/句尾/口癖倾向（缺统计文件时静默跳过）
+        try {
+          const pn = persona.note(null, personaSettings());
+          if (pn && pn.hint) { ctx.personaNote = pn.hint; d._persona = { samples: pn.samples, why: pn.why }; log({ event: 'persona', key, samples: pn.samples, name: pn.name }); }
+        } catch (e) { log({ event: 'persona-error', key, err: String(e && e.message).slice(0, 160) }); }
         if (d._style && d._style.enabled) log({ event: 'style', key, register: d._style.register, tease: d._style.allowTease, intimate: d._style.allowIntimate, soften: d._style.soften, echo: d._style.echoShift || undefined, max: d._style.maxChars });
       } catch (e) { log({ event: 'style-error', key, err: String(e && e.message).slice(0, 160) }); }
 
@@ -1209,6 +1413,23 @@ async function handle(evt) {
           log({ event: 'clock', key, weekday: cn.info.weekday, phase: cn.info.phase, weekend: cn.info.weekend, holiday: cn.info.holiday && cn.info.holiday.name || '' });
         }
       } catch (e) { log({ event: 'clock-error', key, err: String(e && e.message).slice(0, 160) }); }
+
+      // 思维模式：这轮该「怎么想」（先接情绪 / 给可执行建议 / 讲清原理 / 一句带过），并按此给深度预算
+      try {
+        const mst = (d._mindBits && d._mindBits.state) || null;
+        const md = mode.noteFor(key, {
+          text: d.text, now: Date.now(),
+          rel: (mst && mst.rel) || null, pad: (mst && mst.pad) || null, echo: d._echo
+        }, modeSettings());
+        d._mode = md;
+        if (md && md.note) {
+          const cm = md.budget && md.budget.maxChars ? `（大概别超过 ${md.budget.maxChars} 字）` : '';
+          ctx.modeNote = md.note + cm;
+        }
+        if (md && md.budget && md.budget.maxTokens) ctx.maxTokens = md.budget.maxTokens;
+        log({ event: 'mode', key, mode: md.mode, want: md.requested, why: md.why, bias: md.bias, tokens: md.budget && md.budget.maxTokens });
+        lastMode.set(key, { mode: md.mode, at: Date.now(), maxTokens: md.budget && md.budget.maxTokens });
+      } catch (e) { log({ event: 'mode-error', key, err: String((e && e.message) || e).slice(0, 160) }); }
 
       out = await brain.think(ctx);
       d._t0 = _t0; d._tThink = Date.now();
@@ -1314,12 +1535,31 @@ async function handle(evt) {
         }
       }
       log({ event: 'thought', key: d.key, ms: out.ms, model: out.model, reply: out.reply, sticker: d.stickerId || '', want: out.stickerKey || '' });
-      // 可选：把短回复改成语音（config.autoreply.json 的 voice 段，默认关）
+      // 要不要「说」出来：默认由模型自己选（它在回复里写 [[语音]]），choice='random' 才回到掷骰子
       const vCfg = cfg.voice || {};
-      if (vCfg.enabled && d.reply && !d.stickerSeg) {
-        const maxC = vCfg.maxChars || 50;
-        const p = typeof vCfg.probability === 'number' ? vCfg.probability : 0.2;
-        if (d.reply.length <= maxC && Math.random() < p) d.asVoice = true;
+      const choice = String(vCfg.choice || 'model').toLowerCase();
+      // 记下当轮的语气信号，等真正合成语音时（sendOnce 里）用来挑 rate/pitch/volume
+      d._voiceSignals = {
+        mood: ctx.mood || '',
+        pad: (d._mindBits && d._mindBits.state && d._mindBits.state.pad) || null,
+        mode: (d._mode && d._mode.mode) || '',
+        echo: d._echo || null,
+        tie: (d._tie && (d._tie.type || '')) || ''
+      };
+      if (vCfg.enabled !== false && choice !== 'off' && d.reply && !d.stickerSeg) {
+        // maxChars <= 0（或没设）= 不限字数：DSH 想把多长的话用语音说都行（2026-10-26 用户要求解除限制）
+        const rawMax = Number(vCfg.maxChars);
+        const maxC = Number.isFinite(rawMax) && rawMax > 0 ? rawMax : 0;
+        const tooLong = maxC > 0 && String(d.reply).length > maxC;
+        if (out.voice) {
+          if (tooLong) log({ event: 'voice-skip', key: d.key, why: 'too-long', chars: String(d.reply).length, max: maxC });
+          else { d.asVoice = true; log({ event: 'voice-choice', key: d.key, by: 'model', chars: String(d.reply).length }, '这句用语音说'); }
+        } else if (choice === 'random' && !tooLong) {
+          const p = typeof vCfg.probability === 'number' ? vCfg.probability : 0.2;
+          if (Math.random() < p) { d.asVoice = true; log({ event: 'voice-choice', key: d.key, by: 'dice', chars: String(d.reply).length }); }
+        }
+      } else if (out && out.voice && vCfg.enabled === false) {
+        log({ event: 'voice-skip', key: d.key, why: 'disabled' });
       }
     } catch (error) {
       d.reply = d.fallbackReply;
@@ -1360,6 +1600,8 @@ async function handle(evt) {
  * 只做本地读写，失败不影响主链路。
  */
 function afterSend(d) {
+  // 只要这一轮发的是实质内容（不是碎话），就把「连两条碎话」的闸门打开
+  try { require('./murmur.js').markSubstantive(d && d.key); } catch (e) { /* ignore */ }
   try {
     if (promiseSettings().enabled === false) return;
     const key = promiseKeyOf(d);
@@ -1404,7 +1646,8 @@ function connect() {
 }
 
 module.exports = {
-  atOthers, lastMyLine, followNames, follow, nick, themSettings, echoSettings, typingPush, typingPop, typingTargetOf, decide, inQuietHours, textOf, hasAtMe, handle, dispatch, mergeEvents, mergeable, mergeSettings, flushMerge, fetchQuote, saySettings, analyzeIncoming, buildMessage, send, sendBubble, splitReply, afterSend, mindAfterTurn, promiseSettings, humanizeSettings, lastStickerSent };
+  loadCfg, burstSettings, parseBurst, forwardSettings, modeSettings, personaSettings, murmurSettings, pushCtxTurn,
+  atOthers, lastMyLine, followNames, follow, nick, themSettings, timelineSettings, echoSettings, typingPush, typingPop, typingTargetOf, decide, inQuietHours, textOf, hasAtMe, handle, dispatch, mergeEvents, mergeable, mergeSettings, flushMerge, fetchQuote, saySettings, analyzeIncoming, buildMessage, send, sendBubble, splitReply, afterSend, mindAfterTurn, promiseSettings, humanizeSettings, lastStickerSent };
 
 if (require.main === module) {
   const mode = process.argv[2];
@@ -1497,100 +1740,8 @@ if (require.main === module) {
     })().catch(e => { console.error('ERR', e); process.exit(1); });
     return;
   }
-  // 空闲巩固：聊完就散场的时候也该「反刍」——定时看看有没有没整理完的会话
-  {
-    const m0 = mindSettings();
-    if (m0.enabled !== false) {
-      const everyMin = Math.max(2, Number(m0.sweepEveryMin) || 10);
-      setInterval(async () => {
-        try {
-          const r = await mind.sweep({
-            mind: m0,
-            turnsOf: (k) => { try { return ctxStore.view(k).history || []; } catch (e) { return []; } },
-            extract: (list) => brain.extractMemories(list, { nick: '对方' }),
-            idleMin: Number(m0.sweepIdleMin) || undefined
-          });
-          if (r.skipped) log({ event: 'mind-sweep-skip', why: r.skipped });
-          else log({ event: 'mind-sweep', scanned: r.scanned, swept: (r.swept || []).map(x => ({ key: x.key, pending: x.pending, added: x.added })) },
-            (r.swept || []).length ? `空闲巩固：整理了 ${r.swept.length} 个会话` : `空闲巩固：扫了 ${r.scanned} 个会话，没有要整理的`);
-        } catch (e) {
-          log({ event: 'mind-sweep-error', err: String((e && e.message) || e).slice(0, 200) });
-        }
-      }, everyMin * 60000).unref();
-    }
-  }
-  // 想念调度：没人找我时，会不会主动想起谁（间隔与强度由亲密度/关系决定）
-  {
-    const longing = require('./longing.js');
-    const l0 = longing.loadCfg(true);
-    if (l0.enabled !== false) {
-      const everyMin = Math.max(3, Number(l0.checkEveryMin) || 20);
-      setInterval(async () => {
-        try {
-          // 风控闸门：主动动作默认必须走手机官方客户端（A 通道），客户端不许主动发
-          const gp = risk.gate('proactive');
-          if (!gp.ok) { log({ event: 'longing-skip', why: 'risk: ' + gp.why }); return; }
-          const r = await longing.runOnce({
-            send,
-            log,
-            // 主动开口也要看情绪/关系底色，promptBits 里已经带了
-          });
-          if ((r.sent || []).length) log({ event: 'longing-done', n: r.sent.length, keys: r.sent.map(x => x.key) }, '主动找 ' + r.sent.length + ' 个人说了话');
-          else if (r.skipped && r.skipped !== 'no-one') log({ event: 'longing-skip', why: r.skipped });
-          else log({ event: 'longing-check', cands: r.cands || 0 });
-        } catch (e) {
-          log({ event: 'longing-error', err: String((e && e.message) || e).slice(0, 200) });
-        }
-      }, everyMin * 60000).unref();
-    }
-  }
-  // 自进化：定期看真实对话，把「判定阈值 / 词表」小步挪向更贴合的方向（写 config/tuning.json）
-  {
-    const evolve = require('./evolve.js');
-    const e0 = { ...evolve.DEFAULTS, ...((cfgNow().evolve) || {}) };
-    if (e0.enabled !== false) {
-      const everyMin = Math.max(30, Number(e0.everyMin) || 360);
-      setInterval(async () => {
-        try {
-          const r = evolve.runOnce({ apply: e0.apply !== false, minRecords: e0.minRecords });
-          if (r.skipped) log({ event: 'evolve-skip', why: r.skipped, samples: r.samples });
-          else if ((r.applied || []).length || (r.words || []).length) {
-            log({ event: 'evolve-applied', applied: r.applied, words: (r.words || []).map(x => x.w), samples: r.samples },
-              `自进化：调了 ${(r.applied || []).length} 个阈值、补了 ${(r.words || []).length} 个词`);
-          } else {
-            log({ event: 'evolve-check', samples: r.samples, notes: r.notes || [] });
-          }
-        } catch (e) {
-          log({ event: 'evolve-error', err: String((e && e.message) || e).slice(0, 200) });
-        }
-      }, everyMin * 60000).unref();
-    }
-  }
-  // 头像：默认 enabled=false（不自动换）。打开后按情绪/时段挑款式，受 risk('profile') 闸门与间隔限制。
-  {
-    const avatar = require('./avatar.js');
-    const a0 = avatar.loadCfg();
-    if (a0.enabled) {
-      const everyMin = Math.max(60, (Number(a0.checkEveryHours) || 12) * 60);
-      const tick = async () => {
-        try {
-          // 用自己这条会话的 PAD 状态挑款式（没有就按常规/时段选）
-          let pad = null;
-          try {
-            const st = mind.loadState('p:' + (cfgNow().selfId || SELF_ID));
-            pad = (st && st.pad) || null;
-          } catch (e) { }
-          const r = await avatar.consider({ pad, dry: process.env.AUTOREPLY_DRY === '1' });
-          if (r.changed) log({ event: 'avatar-change', variant: r.variant, why: r.why, file: r.file }, `换了头像：${r.variant}（${r.why}）`);
-          else if (r.why && r.why !== 'disabled') log({ event: 'avatar-skip', why: r.why, variant: r.variant });
-        } catch (e) {
-          log({ event: 'avatar-error', err: String((e && e.message) || e).slice(0, 200) });
-        }
-      };
-      setInterval(tick, everyMin * 60000).unref();
-      setTimeout(tick, 90 * 1000).unref();
-    }
-  }
+  // 后台定时器：空闲巩固 / 想念调度 / 自进化 / 头像（各自可关，失败只记日志，绝不影响回复）
+  timers.startAll({ log, send, mindSettings, cfgNow, SELF_ID });
   connect();
   setInterval(() => {
     const before = cfg && cfg.enabled;

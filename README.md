@@ -37,8 +37,21 @@
 | 风控闸门 | `risk.js` | 掉线熔断、登录/重启额度、动作分级（被动回复 vs 主动动作） | 0 token |
 | 自进化 | `evolve.js` | 从真实对话里统计「判冷太频繁」，自己把阈值往回调 | 0 token |
 | 自己管资料 | `avatar*.js` `nick.js` | 聊天里说「换个头像」「改叫星河」就能改；改昵称只听很熟/伴侣的 | 1 次接口调用 |
+| 关系分档 | `ties.js` | 陌生人→熟人→朋友→很熟→恋人；**恋人全局唯一**，冷战超时自动分手，复合要双方明确 | 0 token |
+| 心情状态 | `presence.js` | 真的去改 QQ 的在线状态与心情（恋爱中/emo/摸鱼/熬夜…），有节流与失败自停 | 1 次接口调用 |
+| 思维模式 | `mode.js` | 这一轮该怎么想：先接情绪 / 给倾向 / 讲清楚 / 就贫一句；按 token 预算收放 | 0 token |
+| 时间线 | `timeline.js` | 从时间戳读出「洗澡大概洗了 30 分钟」这种时间感，并把间隔标进上下文 | 0 token |
+| 说话风格 | `persona.js` | 从 699 条真实语音的统计里学她的句长、收尾、口癖，而不是我瞎编人设 | 0 token |
+| 碎话层 | `murmur.js` | 对方只发「嗯/哦/？」时回一句「嗯嗯」「啊？」，不再硬凑一段话 | 0 token |
+| 合并转发 | `forward.js` | 把「[合并转发]」拆开读，并明确「那是别人说的，不是 TA 说的」 | 0 token |
+| TA 的状态 | `them.js` | 记住「我要去洗澡了」，不会下一句说「你忙你的，七点叫你」 | 0 token |
+| 主动引用 | `quote.pickForQuote` | 主动开口时引一条接得上的旧消息，失败自动去掉引用重发 | 0 token |
+| 连发多条 | `auto-reply.js` | 一句话拆成 2–4 条气泡，每条可单独是语音，表情单独一条 | 0 token |
+| 语音合成 | `voice.js` | edge-tts（快）/ GPT-SoVITS 零样本克隆（像本人）/ RVC 换声（改音色）三段可切 | 0–1 次外部进程 |
+| 看图 / 看动图 | `vision.js` `sticker_prep.py` | 看懂对方发的图片与动图（帧差 + 多帧网格） | 1 次视觉调用 |
+| 控制台 | `panel.js` `dryrun.js` | 一个页面看状态、看每个模块在干嘛、**试一句**（隔离环境预演，绝不发送） | 0 token |
 
-一次回复会依次经过：**连发合并 → 引用解析 → 补账 → 回响 → 记忆召回 → 承诺 → 分寸 → 自我/历法 → 拼 prompt → 模型（并发抢答）→ 人话自检 → 太冲重写 → 表情挑选 → 打字节奏 → 发送**。详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+一次回复会依次经过：**连发合并 → 引用解析 → 离线补账 → TA 的状态 → 回响 → 记忆召回 → 思维模式 → 分寸与风格 → 承诺/想念 → 自我线与历法 → 时间线 → 拼 prompt → 模型（并发抢答）→ 人话自检 → 太冲重写 → 挑表情 → 打字节奏 → 逐条发送（可拆多条/带语音）**。详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
 ## 为什么「所有规则都可进化」
 
@@ -103,8 +116,9 @@ AUTOREPLY_DRY=1 node scripts/auto-reply.js   # 演练：只决策和拼段，不
 ## 常用命令
 
 ```bash
-node scripts/test-all.js              # 28 组离线自检（不需要 QQ / 模型）
+node scripts/test-all.js              # 47 组离线自检（不需要 QQ / 模型）
 node scripts/test-all.js --all        # 连在线用例一起（需要 NapCat + 模型）
+node scripts/arch.js --check          # 架构一致性（新脚本有没有归类、测试有没有注册）
 
 node scripts/qq.js send <uin> "在吗"          # 直接发一条私聊
 node scripts/qq.js moments "今天风很大"        # 发说说
@@ -116,10 +130,38 @@ node scripts/quote.js sim <message_id>         # 看一条引用会被怎么念�
 node scripts/follow.js list                    # 谁现在还在「@ 过你」的窗口里
 node scripts/nick.js sim p:100000001 "以后叫你星河"   # 这个人够不够格给我改名
 node scripts/avatar.js status                  # 头像池与上次更换时间
-node scripts/longing.js list                  # 谁「该被想起」了
+node scripts/longing.js list                  # 谁「该被想起」了；why <key> 逐闸门诊断
+node scripts/ties.js status                   # 关系分档与唯一恋人
+node scripts/presence.js status               # 当前在线状态 / 今天切了几次
+node scripts/mode.js sim "<对方的话>"          # 这一轮会被判成哪种思维模式
+node scripts/murmur.js sim "<对方的话>"        # 会不会只回一句「嗯嗯」
+node scripts/timeline.js list                 # 从时间戳算出的时间感
+node scripts/forward.js show <id>             # 合并转发里到底写了什么
+node scripts/say.js inspect "<一句话>"         # 人话自检会给几分、要不要重写
+node scripts/voice.js say "你好呀" --to <uin> --tone warm   # 发一条语音
+node scripts/panel.js                         # 起控制台（默认 127.0.0.1:8787）
+node scripts/dryrun.js p:100000001 "在吗"      # 隔离环境预演一句，不发送
 node scripts/risk.js status                   # 风控闸门当前状态
 node scripts/mind.js graph p:100000001        # 看这个人的联想记忆图
 ```
+
+## 语音：三条路线，按场合切
+
+| 路线 | 像不像本人 | 速度（CPU） | 说明 |
+| --- | --- | --- | --- |
+| `edge-tts`（默认） | 不像，但自然 | ~1.7s/句 | 微软在线 TTS，八档语气（`prosody.js`：安慰/撒娇/困/兴奋…），零成本 |
+| **GPT-SoVITS 零样本克隆** | **像本人** | 10–20s/句 | 需要 3–10 秒参考音频；本仓库只带客户端（`voice.js` 的 `gpt-sovits`），服务端要自己搭 |
+| RVC 换声 | 换音色不改语气 | ~4s/句 | 先 TTS 再换声，必须有底稿音频 |
+
+`config/voice.json` 的 `provider` 决定走哪条，失败会自动降级（`fellBack` 字段说明原因），**宁可音色没换也不吞掉这条语音**。运行时的权重/参考音频、模型文件都不进仓库。
+
+## 控制台：一个页面看清它在干嘛
+
+```bash
+node scripts/panel.js      # http://127.0.0.1:8787
+```
+
+页面里有：每个模块的**一句话说明 + 当前状态**、一次回复的完整管线、按会话看上下文/记忆/关系、主动发起与承诺清单、日志尾巴，以及**「试一句」**——它在隔离目录里跑真实链路（`dryrun.js`，默认禁止联网找表情），**只输出会发什么，不真的发送**。另有 13 个开关可在页面上直接改（改的是 `config/*.json`，有白名单）。
 
 ## 目录结构
 
@@ -138,7 +180,7 @@ docs/                 架构、风控合规、路线图、历史调研
 node scripts/test-all.js
 ```
 
-28 组、848 断言，覆盖：分层上下文与补账、记忆图与巩固、关系事件脉冲衰减、想念公式单调性、承诺准入与到期、分寸降级、语气判定、回响打分、矛盾检测、历法、群聊闸门与「@ 之后跟随」、改昵称授权、引用消息解析、自我线、自调参、风控熔断、adb 解析、表情路由/复合/采集/学习、头像池与来源。
+47 组、1366 断言，覆盖：分层上下文与补账、记忆图与巩固、关系事件脉冲衰减、关系分档与唯一恋人、想念公式单调性与追一句、承诺准入/到期提醒、分寸降级、语气判定与太冲重写、回响打分与诉苦识别、思维模式判定与自调权、TA 的状态矛盾检测、历法、群聊闸门与「@ 之后跟随」、改昵称授权、引用消息解析与主动引用、时间线算时长、合并转发拆解、自我线、心情状态映射与节流、碎话闸门、连发多条拆条、忙时延后、人话自检、自调参、风控熔断、adb 解析、表情路由/复合情绪/采集/反馈学习/动图、头像池与来源、语音三段降级、RVC 客户端、控制台与「试一句」。
 
 在线用例（`--all`）会真调模型、真读 NapCat 历史，但**永远 dry 发送**。
 

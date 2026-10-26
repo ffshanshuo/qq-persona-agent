@@ -8,11 +8,14 @@ const fs = require('fs');
 const ROOT = path.join(__dirname, '..');
 
 process.env.QQBOND_DIR = path.join(ROOT, 'logs', 'bonds-test');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-bonds-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-bonds-test';
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-bonds-test');
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-bonds-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-bonds-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-bonds-test';
 try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 process.env.QQCTX_DIR = path.join(ROOT, 'logs', 'context-bonds-test');
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-bonds-' + process.pid + '.json';
 
 const bonds = require('./bonds.js');
 const mind = require('./mind.js');

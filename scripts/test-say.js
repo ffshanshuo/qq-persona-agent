@@ -16,6 +16,8 @@ const fs = require('fs');
 const ROOT = path.join(__dirname, '..');
 const LOG = path.join(ROOT, 'logs', 'autoreply-say-test.log');
 process.env.AUTOREPLY_DRY = '1';
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-say-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-say-test';
 process.env.AUTOREPLY_LOG = LOG;
 process.env.AUTOREPLY_CONFIG = path.join(ROOT, 'config', 'autoreply.merge-test.json');
 process.env.AUTOREPLY_STATE = path.join(ROOT, 'logs', 'state-say-test.json');
@@ -174,7 +176,10 @@ const evt = (text, extra) => ({
   ar.dispatch(evt('我今天考试考完了'));
   ar.dispatch(evt('但是有点慌'));
   ar.dispatch(evt('感觉没考好'));
-  await sleep(1600);
+  // 原来固定 sleep(1600)：机器忙时合并窗口还没走完就断言 → 偶发「连发只触发一次思考」假失败
+  // 改成「等它真的想一次」再给 400ms 观察是否重复（上限 4s）
+  for (let i = 0; i < 80 && seen.length === 0; i++) await sleep(100);
+  await sleep(800);
   ok('连发只触发一次思考', seen.length === 1, seen.map(x => x.text));
   ok('思考时看到三条合起来的文字', seen.length === 1 && /考试考完了[\s\S]*有点慌[\s\S]*没考好/.test(seen[0].text), seen[0] && seen[0].text);
   ok('note 里明说别逐条回', seen.length === 1 && /连着发了几条/.test(seen[0].note || ''), seen[0] && seen[0].note);

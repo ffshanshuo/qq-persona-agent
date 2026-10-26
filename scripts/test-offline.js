@@ -16,6 +16,8 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 // 测试上下文写独立目录，别污染生产会话（logs/context/）
 process.env.QQCTX_DIR = process.env.QQCTX_DIR || path.join(ROOT, 'logs', 'context-test');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-offline-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-offline-test';
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-offline-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-offline-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-offline-test';
 try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }

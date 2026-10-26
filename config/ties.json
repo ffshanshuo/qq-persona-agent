@@ -1,0 +1,27 @@
+{
+  "enabled": true,
+  "tiers": {
+    "acquaintance": 0.15,
+    "friend": 0.35,
+    "close": 0.6
+  },
+  "loverMinIntimacy": 0.62,
+  "loverMinTrust": 0.45,
+  "coolingTension": 0.7,
+  "coolingHours": 72,
+  "breakHours": 72,
+  "repairTension": 0.4,
+  "reunionMinIntimacy": 0.5,
+  "reunionMaxTension": 0.4,
+  "reunionCooldownHours": 24,
+  "keepHistory": 120,
+  "maxEvents": 200,
+  "_note": "关系类型层：决定「你们现在算什么关系」，以及恋人唯一性、冷战/分手/复合的时间线。真实关系不能只靠四轴数值。",
+  "_tiers": "普通档位阈值（按亲密度）：<0.15 不熟 / 0.15 认识 / 0.35 朋友 / 0.6 很熟。恋人（lover）绝不由数值自动产生。",
+  "_lover": "loverMinIntimacy / loverMinTrust = 对方表白或答应时，关系必须真的到这一步；不够就只记事件、不改身份（DSH 不会因为一句表白就自封恋人）。",
+  "_cooling": "coolingTension=0.7：恋人之间张力到 0.7 进入冷战（phase=cooling），期间不主动、语气软；张力降到 repairTension=0.4 以下自动和好。",
+  "_break": "breakHours=72：冷战满 72 小时还没缓过来 → 自动分手（type=ex，释放全局恋人位）。对方明说「分手吧」则立即转 ex。",
+  "_reunion": "复合必须是对方明确提（复合/重新开始…），且 intimacy ≥ 0.5、tension ≤ 0.4；reunionCooldownHours 防止反复纠缠。",
+  "_unique": "全体唯一恋人存在 logs/ties/_global.json；已有一位恋人时，第二个人的表白不会覆盖，只记 tie-conflict 并交回给人处理。",
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
+}

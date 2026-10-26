@@ -9,6 +9,8 @@ const path = require('path');
 const fs = require('fs');
 const ROOT = path.join(__dirname, '..');
 process.env.AUTOREPLY_DRY = '1';
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-bond-e2e-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-bond-e2e-test';
  process.env.AUTOREPLY_LOG = path.join(ROOT, 'logs', 'autoreply-+extra+-test.log');
 process.env.AUTOREPLY_CONFIG = path.join(ROOT, 'config', 'autoreply.bond-test.json');
 process.env.QQCTX_DIR = path.join(ROOT, 'logs', 'context-bond-e2e');
@@ -21,6 +23,7 @@ process.env.QQTRACE_DIR = path.join(ROOT, 'logs', 'trace-bond-e2e');
 process.env.QQPROMISE_DIR = path.join(ROOT, 'logs', 'promises-bond-e2e');
 process.env.QQBOND_DIR = path.join(ROOT, 'logs', 'bonds-bond-e2e');
 process.env.QQLONGING_DIR = path.join(ROOT, 'logs', 'longing-bond-e2e');
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-bond-e2e-' + process.pid + '.json';
 
 const ar = require('./auto-reply.js');
 const bonds = require('./bonds.js');

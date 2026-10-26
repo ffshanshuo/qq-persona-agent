@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "maxHours": 8,
+  "minMinutes": 1,
+  "lookbackHours": 72,
+  "maxItems": 3,
+  "gapMin": 5,
+  "keepSpans": 80,
+  "_note": "时间线层（timeline.js）：全量聊天记录都带毫秒 t 与 ISO at 两种时间戳；这里定义怎么把时间戳读成「时间感」。",
+  "_maxHours": "一对「去做什么/做完了」最多隔多久还算同一次（超过当两件事）",
+  "_minMinutes": "少于这个分钟数不报（同一口气说的话别当间隔）",
+  "_lookbackHours": "只关心近 N 小时内的间隔",
+  "_maxItems": "prompt 里最多列几条间隔",
+  "_gapMin": "相邻两句隔多久才在上下文里标「(+N 分钟)」，太短的标了反而吵",
+  "_keepSpans": "logs/timeline 每会话保留多少条",
+  "onlyThem": true,
+  "_onlyThem": "只认对方自己的汇报；我这边的叮嘱（「洗完早点睡」）不算状态变化",
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
+}

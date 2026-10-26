@@ -114,6 +114,8 @@ function charsOf(turns) {
 
 /** 追加一条；返回更新后的 ctx（已落盘）。 */
 function push(key, turn, opts = {}) {
+  // seq = QQ 里真实的 message_seq（事件字段 real_seq）。主动引用要用它，不能用 message_id。
+  if (turn && turn.seq != null && turn.seq !== '') turn.seq = String(turn.seq);
   const o = { ...cfg, ...opts };
   if (!o.enabled) return null;
   const c = load(key, turn.kind || (String(key).startsWith('g:') ? 'group' : 'private'), turn.peer);
@@ -123,6 +125,10 @@ function push(key, turn, opts = {}) {
     speaker: turn.speaker || '',
     text: String(turn.text || '').slice(0, 400)
   };
+  // 全量保存都带人可读时间戳（毫秒 t 给机器算间隔，ISO at 给人/日志看）
+  item.at = new Date(item.t).toISOString();
+  // 真实 message_seq：主动引用要靠它指「引用哪一条」；没有就留 null
+  item.seq = turn.seq != null && turn.seq !== '' ? String(turn.seq) : null;
   if (!item.text) return c;
   c.turns.push(item);
   c.updatedAt = item.t;
@@ -156,7 +162,7 @@ function ingest(key, kind, peer, msgs, opts = {}) {
     const sig = t.t + '|' + t.from + '|' + t.text;
     if (seen.has(sig)) continue;
     seen.add(sig);
-    added.push({ t: t.t, from: t.from, speaker: t.speaker, text: String(t.text).slice(0, 400) });
+    added.push({ t: t.t, at: new Date(t.t).toISOString(), from: t.from, speaker: t.speaker, text: String(t.text).slice(0, 400) });
   }
   const missed = lastT ? added.filter(t => t.t > lastT && t.from === 'them') : [];
   if (!added.length) return { ok: true, added: 0, total: c.turns.length, missed: [] };
@@ -193,7 +199,7 @@ function view(key, opts = {}) {
     ? `距上次对话约 ${idleMin >= 120 ? Math.round(idleMin / 60) + ' 小时' : idleMin + ' 分钟'}，可以自然地问一句这段时间的事。`
     : '';
   return {
-    history: kept.map(t => ({ from: t.from, text: t.text, speaker: t.speaker, ageMin: Math.round((now - t.t) / 60000) })),
+    history: kept.map(t => ({ from: t.from, text: t.text, speaker: t.speaker, t: t.t, at: t.at || new Date(t.t).toISOString(), seq: t.seq != null ? String(t.seq) : null, ageMin: Math.round((now - t.t) / 60000) })),
     summary: c.summary || '',
     facts: c.facts || [],
     idleMin,

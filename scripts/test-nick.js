@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const ROOT = path.resolve(__dirname, '..');
 process.env.AUTOREPLY_DRY = '1';
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-nick-test';
 process.env.AUTOREPLY_LOG = path.join(ROOT, 'logs', 'autoreply-nick-test.log');
 process.env.QQNICK_DIR = path.join(ROOT, 'logs', 'nick-nick-test');
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-nick-test';
@@ -45,6 +46,7 @@ fs.writeFileSync(CFGP, JSON.stringify({
   follow: { enabled: false }, group2: {}, risk: {}
 }, null, 1));
 process.env.AUTOREPLY_CONFIG = CFGP;
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-nick-' + process.pid + '.json';
 
 let pass = 0, fail = 0;
 function ok(name, cond, extra) {

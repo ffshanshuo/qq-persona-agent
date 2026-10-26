@@ -16,6 +16,8 @@ const fs = require('fs');
 const ROOT = path.join(__dirname, '..');
 const LOG = path.join(ROOT, 'logs', 'autoreply-merge-live.log');
 process.env.AUTOREPLY_DRY = '1';
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-merge-live-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-merge-live-test';
 process.env.AUTOREPLY_LOG = LOG;
 process.env.AUTOREPLY_CONFIG = path.join(ROOT, 'config', 'autoreply.merge-test.json');
 process.env.QQCTX_DIR = path.join(ROOT, 'logs', 'context-merge-live');
@@ -26,6 +28,7 @@ try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: tr
 
 process.env.QQTRACE_DIR = path.join(ROOT, 'logs', 'trace-merge-live');
 process.env.QQPROMISE_DIR = path.join(ROOT, 'logs', 'promises-merge-live');
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-merge-live-' + process.pid + '.json';
 
 const { call } = require('./qq.js');
 const ar = require('./auto-reply.js');

@@ -1,71 +1,76 @@
 {
- "enabled": true,
- "selfId": 123456789,
- "private": {
   "enabled": true,
-  "allowList": [],
-  "denyList": []
- },
- "group": {
-  "enabled": false
- },
- "limits": {
-  "perContactPerHour": 0,
-  "globalPerHour": 0
- },
- "delayMs": [
-  0,
-  0
- ],
- "merge": {
-  "enabled": false
- },
- "quote": {
-  "enabled": false
- },
- "context": {
-  "enabled": false,
-  "warmup": false
- },
- "mind": {
-  "enabled": false
- },
- "echo": {
-  "enabled": false
- },
- "promises": {
-  "enabled": false
- },
- "stickers": {
-  "enabled": false,
-  "allowFace": false,
-  "autoFetch": false
- },
- "voice": {
-  "enabled": false
- },
- "humanize": {
-  "typing": false,
-  "split": false
- },
- "pacing": {
-  "enabled": false
- },
- "say": {
-  "enabled": false
- },
- "them": {
-  "enabled": false
- },
- "clock": {
-  "enabled": false
- },
- "self": {
-  "enabled": false
- },
- "follow": {
-  "enabled": false
- },
- "group2": {},
- "risk": {}
+  "selfId": "123456789",
+  "private": {
+    "enabled": true,
+    "allowList": [],
+    "denyList": [],
+    "_example": "填允许自动回复的 QQ 号；空数组 = 不限制"
+  },
+  "group": {
+    "enabled": false,
+    "allowList": [],
+    "denyList": [],
+    "_example": "填允许接话的群号；空数组 = 不接群聊"
+  },
+  "limits": {
+    "perContactPerHour": 0,
+    "globalPerHour": 0
+  },
+  "delayMs": [
+    0,
+    0
+  ],
+  "merge": {
+    "enabled": false
+  },
+  "quote": {
+    "enabled": false
+  },
+  "context": {
+    "enabled": false,
+    "warmup": false
+  },
+  "mind": {
+    "enabled": false
+  },
+  "echo": {
+    "enabled": false
+  },
+  "promises": {
+    "enabled": false
+  },
+  "stickers": {
+    "enabled": false,
+    "allowFace": false,
+    "autoFetch": false
+  },
+  "voice": {
+    "enabled": false
+  },
+  "humanize": {
+    "typing": false,
+    "split": false
+  },
+  "pacing": {
+    "enabled": false
+  },
+  "say": {
+    "enabled": false
+  },
+  "them": {
+    "enabled": false
+  },
+  "clock": {
+    "enabled": false
+  },
+  "self": {
+    "enabled": false
+  },
+  "follow": {
+    "enabled": false
+  },
+  "group2": {},
+  "risk": {},
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
 }

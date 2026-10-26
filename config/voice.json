@@ -1,0 +1,66 @@
+{
+  "provider": "gpt-sovits",
+  "voice": "zh-CN-XiaoxiaoNeural",
+  "rate": "+8%",
+  "pitch": "+0Hz",
+  "volume": "+0%",
+  "voicePool": {
+    "primary": "zh-CN-XiaoxiaoNeural",
+    "lively": "zh-CN-XiaoyiNeural",
+    "accent": "zh-CN-liaoning-XiaobeiNeural"
+  },
+  "voiceSwitchProbability": 0.04,
+  "maxChars": 0,
+  "timeoutMs": 30000,
+  "fallback": "sapi",
+  "_note": "发语音的音色与语速。provider=edge 用 edge-tts（免费、无需 key，中文 Neural 音色自然）；sapi 是 Windows 自带（机械，离线兜底）。",
+  "_voices": "zh-CN-XiaoxiaoNeural 晓晓（女，自然）/ zh-CN-YunxiNeural 云希（男）/ zh-CN-XiaoyiNeural 晓伊（女，活泼）/ zh-CN-YunjianNeural 云健（男，沉稳）/ zh-CN-liaoning-XiaobeiNeural 东北话。用 node scripts/voice.js voices 看本机可用的。",
+  "_why": "用户 2026-10-24 让「检索互联网上 QQ 机器人发语音的办法并推荐」→ 选 edge-tts：免费、中文自然、NapCat 自带 ffmpeg 会把 mp3 转 ntsilk，不需要自己转码。",
+  "_fallback": "edge 失败（没网/包被删）会自动回落 SAPI，不会让消息发不出去。",
+  "_prosody": "语气不换音色：同一副嗓子，只调 rate/pitch/volume 三个轴（edge-tts 只开放这三个）。语气档见 scripts/prosody.js 的 PROSODY：neutral/warm/comfort/playful/clingy/sleepy/serious/excited，按这轮的情绪（mind.pad）、思维模式（mode）、对方语气（echo）、关系（ties）与钟点自动挑，并叠一点点随机抖动。节奏靠标点：波浪号→省略号、顿号→逗号、去掉括号补充，句尾补句号（TTS 只在标点处停顿）。",
+  "_providerNote": "2026-10-26 用户「按GPT-SoVITS走」：provider=gpt-sovits（满穗音色，vendor/voices/*.wav 作参考）",
+  "localShift": {
+    "enabled": true,
+    "pitch": 1.12,
+    "_note": "RVC 服务端不可用时的本地占位：SAPI 出声后重采样改音高/语速（≈+2 半音、语速+12%）；不换音色身份，真换声仍需 RVC"
+  },
+  "gsv": {
+    "enabled": true,
+    "baseUrl": "http://127.0.0.1:7899",
+    "voice": "mansui-ref",
+    "lang": "zh",
+    "speed": 1,
+    "timeoutMs": 180000,
+    "cache": true,
+    "cacheHours": 24,
+    "fallback": "edge",
+    "_note": "GPT-SoVITS 零样本克隆：CPU 上 10~20s/句，服务端 vendor/gsv-server.py（端口 7899）",
+    "_voiceNote": "mansui-ref ← $FFSH/<语音语料目录>/穗-025-a.wav（9.43s，9 秒内最长且无削波；GPT-SoVITS 要求参考音频 3~10s）",
+    "refByTone": {
+      "neutral": "mansui-ref",
+      "warm": "mansui-warm",
+      "comfort": "mansui-comfort",
+      "playful": "mansui-playful",
+      "clingy": "mansui-clingy",
+      "sleepy": "mansui-sleepy",
+      "serious": "mansui-serious",
+      "excited": "mansui-excited",
+      "sad": "mansui-sad"
+    },
+    "speedByTone": {
+      "neutral": 1,
+      "warm": 0.96,
+      "comfort": 0.88,
+      "playful": 1.04,
+      "clingy": 0.98,
+      "sleepy": 0.92,
+      "serious": 0.97,
+      "excited": 1.06,
+      "sad": 0.93
+    },
+    "_refNote": "语气→参考音频映射（同一音色、不同情绪段）：GPT-SoVITS 换参考就换语气，zero 额外推理成本。8 档参考由 logs/gsv-mansui/scripts/tone_pick.py --v2 从 635 条语料按声学原型挑出（comfort=句尾下沉+最平、playful=波动最大、sleepy=最轻最慢…），详见 logs/gsv-mansui/TRAINING-REPORT.md §4。缺失的项自动回落到 mansui-ref。",
+    "_speedNote": "语气→语速：comfort 0.88（实测语料婉转档比平均慢 16%），sleepy 0.92，excited 1.06。两者叠加在微调权重上，不改变音色身份。"
+  },
+  "_maxCharsNote": "0 = 不截断（2026-10-26 用户要求解除语音字数上限）；正数则超长按句截断加「…」",
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
+}

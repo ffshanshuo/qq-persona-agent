@@ -16,11 +16,14 @@ const SDIR = path.join(TMP, 'stickers');
 fs.mkdirSync(path.join(SDIR, 'custom'), { recursive: true });
 fs.mkdirSync(path.join(SDIR, 'made'), { recursive: true });
 process.env.STICKER_DIR = SDIR;
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-sticker-combo-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-sticker-combo-test';
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-sticker-combo-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-sticker-combo-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-sticker-combo-test';
 try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 process.env.QQFETCH_DIR = path.join(TMP, 'sticker-fetch');
 process.env.QQSTICKER_BAN = '';
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-sticker-combo-' + process.pid + '.json';
 
 let pass = 0; let fail = 0;
 function ok(name, cond, extra) {
@@ -63,6 +66,26 @@ console.log('② extractDirective：复合情绪标记');
   const r3 = st.extractDirective('[[表情:无语+好笑]]');
   ok('只发表情时正文为空', r3.text === '', r3.text);
   ok('只发表情时 marker 正确', r3.stickerKey === '无语+好笑', r3.stickerKey);
+  // 2026-10-24 真事故：模型写单括号 [表情:x]，老实现只认 [[…]]，整段标记原样发给了对方
+  const s1 = st.extractDirective('无语了[表情:好笑+无语]');
+  ok('单方括号也能抽（正文不留标记）', s1.text === '无语了' && s1.stickerKey === '好笑+无语', JSON.stringify(s1));
+  const s2 = st.extractDirective('【表情：无奈】行吧');
+  ok('全角括号也能抽', s2.text === '行吧' && s2.stickerKey === '无奈', JSON.stringify(s2));
+  const s3 = st.extractDirective('［表情:无语］好');
+  ok('全角方括号也能抽', s3.text === '好' && s3.stickerKey === '无语', JSON.stringify(s3));
+  const s4 = st.extractDirective('好的 [表情:开心');
+  ok('写残缺（只有左括号）也不外泄', s4.text === '好的' && s4.stickerKey === '', JSON.stringify(s4));
+  const s5 = st.extractDirective('嗯 [表情： 累  ] 睡了');
+  ok('标记在句中也能剥掉且不留双空格', s5.text === '嗯 睡了' && s5.stickerKey === '累', JSON.stringify(s5));
+  ok('没有标记时正文不动', st.extractDirective('普通一句话').text === '普通一句话');
+}
+
+console.log('②b brain.cleanReply 兜底：任何残留标记都不许进聊天框');
+{
+  const br = require('./brain.js');
+  ok('单括号残留被清', br.cleanReply('无语了[表情:好笑+无语]') === '无语了', br.cleanReply('无语了[表情:好笑+无语]'));
+  ok('全角残留被清', br.cleanReply('【表情：无奈】好') === '好', br.cleanReply('【表情：无奈】好'));
+  ok('多标记都被清', br.cleanReply('[表情:开心] 好 [表情:累]') === '好', br.cleanReply('[表情:开心] 好 [表情:累]'));
 }
 
 console.log('③ pick：复合情绪挑图');

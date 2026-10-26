@@ -8,6 +8,8 @@ const fs = require('fs');
 const ROOT = path.resolve(__dirname, '..');
 // 隔离：所有状态目录都指向测试目录，别碰生产
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-style-test');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-style-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-style-test';
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-style-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-style-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-style-test';
 try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
@@ -19,6 +21,7 @@ process.env.QQLONGING_DIR = path.join(ROOT, 'logs', 'longing-style-test');
 process.env.AUTOREPLY_DRY = '1';
 process.env.AUTOREPLY_LOG = path.join(ROOT, 'logs', 'autoreply-style-test.log');
 process.env.AUTOREPLY_CONFIG = path.join(ROOT, 'config', 'autoreply.ctx-test.json');
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-style-' + process.pid + '.json';
 
 const style = require('./style.js');
 
@@ -134,6 +137,15 @@ ok('brain prompt 里没有露出关系数值', !/intimacy\s*[:：=]\s*0?\.\d/.te
   ok('「你给我等着」算命令口气', style.isHarsh('你给我等着', closeSt).harsh === true);
   ok('正常温和回复不算冲', style.isHarsh('在呢，刚忙完，怎么啦？', closeSt).harsh === false);
   ok('熟人提示里不含「舔狗」这种措辞', !/舔狗/.test(closeSt.hint));
+
+
+  // ---------- 口癖：同一个人固定几条，别每条都用 ----------
+  ok('habitsOf 对同一个人稳定', JSON.stringify(style.habitsOf('p:68686868')) === JSON.stringify(style.habitsOf('p:68686868')));
+  ok('habitsOf 对不同人不一样', JSON.stringify(style.habitsOf('p:68686868')) !== JSON.stringify(style.habitsOf('p:99999999')));
+  ok('habitsOf 给 2 条且带 id/tip', style.habitsOf('p:68686868').length === 2 && style.habitsOf('p:68686868').every(h => h && h.id && h.tip));
+  const hh = style.habitHint('p:68686868');
+  ok('habitHint 是给模型看的人话', /三分之一|别每条/.test(hh), hh);
+  ok('habitHint 不暴露权重/编号', !/\d+\.\d|habit-\d/.test(hh), hh);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

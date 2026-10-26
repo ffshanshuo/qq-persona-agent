@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "name": "满穗",
+  "profileFile": "logs/mansui-style.json",
+  "maxHintChars": 420,
+  "habitMax": 3,
+  "particleMax": 4,
+  "minSamples": 20,
+  "_note": "说话风格层：profileFile 是从真实语音语料统计出来的风格文件（tools/corpus-asr.py + tools/corpus-stats.py 产出）。enabled:false 可整体关掉；minSamples 以下不启用（样本太少统计不可信）。",
+  "_why": "用户 2026-10-26：「说话的风格语气也按满穗的来」「<语音语料目录>全部用来训练」——风格来自 699 条语音的全量转写统计，不是手写设定。",
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
+}

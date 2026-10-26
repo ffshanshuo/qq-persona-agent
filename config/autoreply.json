@@ -79,7 +79,7 @@
       "reply": "好～"
     }
   ],
-  "defaultReply": "我在，这会儿手上有点事，晚点回你。急事就再发一遍。",
+  "defaultReply": "在的，刚看到。",
   "llm": {
     "enabled": true,
     "_note": "true=让 brain.js 现想一句；false=退回 rules 模板"
@@ -92,11 +92,20 @@
     "asSticker": true,
     "autoFetch": true
   },
+  "murmur": {
+    "enabled": true,
+    "probability": 0.45,
+    "minGapMin": 20,
+    "perHour": 2,
+    "perDay": 12,
+    "_note": "碎话层：对方只发「嗯/哦/？/哈哈/好的」这种没信息量的话时，偶尔回一句两三字的反应（不过模型、省 token）。概率与频次依据见 README「碎话层」。只能私下或群里点名时用。"
+  },
   "voice": {
-    "enabled": false,
+    "enabled": true,
     "probability": 0.2,
-    "maxChars": 50,
-    "_note": "enabled=true 时偶尔把短回复用 Windows SAPI 念成语音发出去（概率 probability；只对 ≤maxChars 且不带表情的回复生效），TTS 失败自动退回文字"
+    "maxChars": 0,
+    "_note": "这一句要不要用语音说，默认由 DSH 自己决定（它在回复末尾写 [[语音]]，再由 choice 决定是否采纳）。choice: model=只听模型 | random=按 probability 掷骰子 | off=永不发语音。maxChars: 0 = 不限字数（2026-10-26 用户要求解除上限），正数 = 超了压回文字。现走 GPT-SoVITS 满穗音色，CPU 约 0.3~0.5s/字，越长越慢（40 字约 10~20s）。",
+    "choice": "model"
   },
   "context": {
     "enabled": true,
@@ -175,6 +184,42 @@
   "them": {
     "enabled": true,
     "_note": "TA 当下安排（去睡/洗澡/上课/加班/出门/生病）到达即记、钉进 prompt；回复与之矛盾会重写一次。参数见 scripts/them.js DEFAULTS"
+  },
+  "mode": {
+    "enabled": true,
+    "_note": "思维模式层的总开关；细参数在 config/mode.json（七类判定 + token 预算 + 反向调权）"
+  },
+  "ties": {
+    "enabled": true,
+    "_note": "关系类型层（恋人唯一性、冷战/分手/复合）。细参数在 config/ties.json；关掉后所有关系按「朋友」处理。"
+  },
+  "presence": {
+    "enabled": true,
+    "_note": "心情状态自动切换（恋爱中/搬砖中/emo中/熬夜中…）。细参数在 config/presence.json；关掉就不动 QQ 的在线状态。"
+  },
+  "persona": {
+    "enabled": true,
+    "_note": "说话风格层总开关；统计文件与细节参数在 config/persona.json"
+  },
+  "burst": {
+    "enabled": true,
+    "max": 4,
+    "gapMs": [
+      500,
+      1200
+    ],
+    "_note": "连发多条：模型在句间写 [[分条]] 就拆成几条发（每条可单独带 [[语音]]，表情永远是最后单独一条）。max=最多几条（超出的并进最后一条）；gapMs=两条之间的间隔（还会叠加按字数算的打字时间）。"
+  },
+  "busy": {
+    "enabled": true,
+    "kinds": [
+      "focus"
+    ],
+    "delayMin": [
+      2,
+      9
+    ],
+    "_note": "真忙时不秒回借口：先搁 2–9 分钟再回（2026-10-26 用户要求：正常人是有空看到了才回，不该秒回「我手上有事，晚点回你」）"
   },
   "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
 }

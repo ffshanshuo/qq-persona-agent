@@ -33,7 +33,15 @@ const DEFAULTS = {
   keepHistory: 30
 };
 
+const CFG_PATH = process.env.QQEVOLVE_CONFIG || path.join(ROOT, 'config', 'evolve.json');
 let cfg = { ...DEFAULTS };
+// 读 config/evolve.json（存在就叠加到默认值上；坏文件按默认走，绝不因配置崩进程）
+function loadCfg() {
+  const disk = readJson(CFG_PATH, null);
+  const merged = { ...DEFAULTS, ...(disk && typeof disk === 'object' ? disk : {}) };
+  cfg = merged;
+  return merged;
+}
 function configure(over) { cfg = { ...DEFAULTS, ...(over || {}) }; return cfg; }
 function options() { return cfg; }
 
@@ -268,7 +276,7 @@ function runOnce(opts = {}) {
 }
 
 module.exports = {
-  DEFAULTS, TUNING_PATH, configure, options, dirOf, echoDirOf,
+  DEFAULTS, CFG_PATH, TUNING_PATH, loadCfg, configure, options, dirOf, echoDirOf,
   feedback, feedbackList, collectRecords, stats, propose, learnWords,
   loadTuning, preview, apply, reset, runOnce, writeJson
 };

@@ -11,11 +11,14 @@ const os = require('os');
 
 const ROOT = path.resolve(__dirname, '..');
 process.env.QQEVOLVE_DIR = path.join(ROOT, 'logs', 'evolve-test');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-evolve-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-evolve-test';
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-evolve-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-evolve-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-evolve-test';
 try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 process.env.QQECHO_DIR = path.join(ROOT, 'logs', 'echo-evolve-test');
 process.env.QQTUNING_FILE = path.join(ROOT, 'logs', 'tuning-evolve-test.json');
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-evolve-' + process.pid + '.json';
 
 for (const d of [process.env.QQEVOLVE_DIR, process.env.QQECHO_DIR]) { try { fs.rmSync(d, { recursive: true, force: true }); } catch (e) { } }
 try { fs.unlinkSync(process.env.QQTUNING_FILE); } catch (e) { }

@@ -7,6 +7,8 @@ const path = require('path');
 const fs = require('fs');
 const ROOT = path.resolve(__dirname, '..');
 process.env.QQSELF_DIR = path.join(ROOT, 'logs', 'self-test');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-self-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-self-test';
 process.env.AUTOREPLY_DRY = '1';
 process.env.AUTOREPLY_LOG = path.join(ROOT, 'logs', 'autoreply-self-test.log');
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-self-test');process.env.QQECHO_DIR = path.join(ROOT, 'logs', 'echo-self-test');
@@ -22,6 +24,7 @@ process.env.QQGROUP_DIR = path.join(ROOT, 'logs', 'group-self-test');
 fs.rmSync(process.env.QQSELF_DIR, { recursive: true, force: true });
 try { fs.rmSync(process.env.AUTOREPLY_LOG, { force: true }); } catch (e) { /* ignore */ }
 process.env.AUTOREPLY_CONFIG = path.join(ROOT, 'config', 'autoreply.ctx-test.json');
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-self-' + process.pid + '.json';
 
 const self = require('./self.js');
 const cfg = { ...self.DEFAULTS, minMinutes: 25, maxMinutes: 110 };

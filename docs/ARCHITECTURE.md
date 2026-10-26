@@ -1,98 +1,330 @@
-# 架构：一次回复会经过什么
+# 架构总览（自动生成，请勿手改）
+
+> 由 `node scripts/arch.js` 从磁盘现读生成；改代码后重跑一次即可同步。
+> 生成时间 2026-10-24 12:40:16 · 52 个模块 · 13262 行 · 43 组自检 · 25 份配置
+
+## 一句话架构
+
+一条消息进来 → 合并/补账 → 读场景（引用、对方状态、群聊跟随）→ 读情绪与关系（回响、事件脉冲、分寸）
+→ 拼 prompt（记忆/状态/时间/尺度）→ 本机网关抢答 → 人话自检（语气/矛盾/标记）→ 拟人化发送（打字、拆条、表情单发）
+
+## 一次回复的真实管线
 
 ```
-                        ┌──────────────── 收到一条 WS 事件 ────────────────┐
-                        │                                                 │
-                   dispatch()  连发合并窗口（默认 2.2s，最多 6 条）
-                        │        「他连发三条其实在说一件事」→ 合成一条处理
-                        ▼
-                   handle()
-                        │
-        ┌───────────────┼─────────────────────────────────────────────┐
-        │ 1 catchupOnce │ 每会话每进程一次：拉历史补离线漏的消息         │
-        │ 2 quote       │ 被引用那条取回来：谁说的/多久前/图片还调视觉    │
-        │ 3 echo        │ 上一轮我那句 → 对方这句：热络/敷衍/诉苦(+意图)  │
-        │ 4 them        │ 识别「去眯一会儿/在上课/在加班」等当前状态      │
-        │ 5 mind        │ promptBits: mood / bond / memories（联想召回）  │
-        │ 6 promises    │ 命中历史承诺 → 一句话提示（别像催账）           │
-        │ 7 style       │ 关系远近 + 心情 + 回响 → 尺度与 hint            │
-        │ 8 self/clock  │ 「我正在写代码」+「今天周五晚上」               │
-        └───────────────┼─────────────────────────────────────────────┘
-                        ▼
-                 brain.think()   拼 prompt → 多模型并发抢答（2–3s）
-                        │         空答视为失败（否则免费模型会「稳赢但沉默」）
-                        ▼
-                 say.inspect()   中英混杂 / 助手腔 / 列清单 / 复述画面 → 只清可清的
-                        │         需要重写的（assistant/meta）重来一次
-                        ▼
-                 style.isHarsh() 太冲 → 带上「软一点」重写一次（对熟的人尤其）
-                        ▼
-                 them.conflicts() 与对方当前状态矛盾（人家说去睡，你说「七点叫你」）→ 重写
-                        ▼
-                 style.softenText() 摘掉没资格的称呼、收感叹号、超长截断
-                        ▼
-                 stickers.pick()  复合情绪打分 + 学习分 → 表情单独一条气泡
-                        ▼
-                 pacing          按字数算「正在输入」时长（先延迟再亮提示）
-                        ▼
-                 send()          拆条（≤2）、串行排队、失败即停、记账给学习层
+WS 事件
+  → dispatch        连发合并（窗口 1.2s / 上限 3.5s）
+  → decide          私聊/群聊闸门（白名单、@ 跟随、沉默窗、插话骰子）
+  → catchupOnce     离线补账（拉历史、去重、missed 提示）
+  → echo            对方上一句落地得怎么样（暖/冷/诉苦/敌意）→ 调 PAD
+  → them / quote    对方此刻在干嘛 / 这条引用的是哪句话
+  → mind.promptBits 状态、关系、联想召回（人话段）
+  → promises        有没有到日子的约定
+  → style           关系与心情决定尺度（档位、字数、禁玩笑）
+  → self / clock    此刻在做什么 / 今天是什么日子
+  → brain.think     本机网关 8326 并发抢答（2 个 combo，deadline 7s）
+  → say / tone / them-retry  人话自检 → 太冲/矛盾/夹英文就重写一次
+  → stripMarkers    表情指令绝不允许漏进聊天框
+  → send            输入中状态 → 打字时长 → 拆条 → 表情单独一条 → 记账
+  → afterSend      承诺/表情反馈/关系脉冲/记忆巩固（异步，不影响回复）
 ```
 
-## 层与文件的对应
+## 分层
 
-| 文件 | 职责 | 落盘 |
+### 入口与运维（进程怎么起、怎么活、怎么停）
+
+| 模块 | 行数 | 作用 | 依赖 | 自检 |
+| --- | --- | --- | --- | --- |
+| `auto-reply.js` | 1546 | 把一条长回复拆成 2 条（像人打字时想到一半就发）。 | 27 个内部模块 | 有 |
+| `arch.js` | 312 | 架构清点器：把「这套系统现在到底有哪些层、谁依赖谁、测没测」从代码里真读出来 | — | — |
+| `watchdog.js` | 191 | （无说明） | 1 个内部模块 | — |
+| `start-qq.js` | 115 | （无说明） | — | — |
+| `setup-http.js` | 31 | （无说明） | — | — |
+| `status.js` | 24 | （无说明） | — | — |
+| `collector.js` | 24 | （无说明） | — | — |
+| `enable-ws.js` | 22 | （无说明） | — | — |
+| `stop-qq.js` | 13 | （无说明） | — | — |
+
+### 请求编排（从 auto-reply 里拆出来的两块：不过模型的即时指令、后台定时器）
+
+| 模块 | 行数 | 作用 | 依赖 | 自检 |
+| --- | --- | --- | --- | --- |
+| `timers.js` | 120 | auto-reply 的四个后台定时器（空闲巩固 / 想念调度 / 自进化 / 头像） | 7 个内部模块 | — |
+| `intercepts.js` | 83 | 聊天里「一句话直接执行」的指令（换头像 / 改昵称） | 2 个内部模块 | — |
+
+### 通道与协议（OneBot 收发、网络、语音、空间、A 通道）
+
+| 模块 | 行数 | 作用 | 依赖 | 自检 |
+| --- | --- | --- | --- | --- |
+| `phone.js` | 336 | （无说明） | 1 个内部模块 | 有 |
+| `voice.js` | 174 | 用这个 QQ 号「发语音」 | 1 个内部模块 | — |
+| `net.js` | 91 | 统一出口（https 请求） | — | — |
+| `qq.js` | 90 | （无说明） | — | 有 |
+| `qzone-feed.js` | 42 | （无说明） | 1 个内部模块 | — |
+| `wc.js` | 27 | （无说明） | — | — |
+| `qr-render.js` | 18 | （无说明） | 1 个内部模块 | — |
+
+### 模型与多模态（说话与看图都从这里出）
+
+| 模块 | 行数 | 作用 | 依赖 | 自检 |
+| --- | --- | --- | --- | --- |
+| `brain.js` | 529 | 让 DSH 自己"想"一句回复 | 3 个内部模块 | 有 |
+| `vision.js` | 162 | 用 Kilo AI 免费池的视觉模型「看」图片（表情包 / 对方发来的图） | 1 个内部模块 | — |
+| `bench-models.js` | 111 | 给「回复生成」挑模型：测延迟 + 粗看质量 | 1 个内部模块 | — |
+
+### 上下文与记忆（记得住、接得上、分得清场景）
+
+| 模块 | 行数 | 作用 | 依赖 | 自检 |
+| --- | --- | --- | --- | --- |
+| `mind.js` | 761 | 让这个号「像人一样记得、有情绪、会联想」 | 3 个内部模块 | 有 |
+| `context.js` | 340 | 原子写。E:\ 上 rename 偶发 EIO/EPERM（杀软或同步盘占着句柄），所以： | — | 有 |
+| `follow.js` | 306 | 群聊「@ 之后的对话跟随」 | — | 有 |
+| `quote.js` | 273 | 引用消息的「上下文感知」 | 1 个内部模块 | 有 |
+| `them.js` | 226 | 「TA 现在的状态」：别把要去睡觉的人当成在忙 | 1 个内部模块 | 有 |
+| `timeline.js` | 217 | 从对话时间戳里读「时间感」 | 2 个内部模块 | 有 |
+| `group.js` | 214 | 群聊在场感：什么时候该插话、该接谁的话 | — | 有 |
+
+### 情绪 · 关系 · 语气（同一件事，用什么态度说）
+
+| 模块 | 行数 | 作用 | 依赖 | 自检 |
+| --- | --- | --- | --- | --- |
+| `echo.js` | 332 | 回响层：根据「对话本身」反过来调整语气与情绪 | 1 个内部模块 | 有 |
+| `bonds.js` | 286 | 关系事件层：关系不会只靠每轮情感平滑地爬，真实关系是被「事情」推着走的 | — | 有 |
+| `mode.js` | 284 | 思维模式（这轮该「怎么想」，而不只是「用什么语气」） | 1 个内部模块 | — |
+| `style.js` | 255 | 说话的分寸：关系与心情反过来决定「怎么说」 | 1 个内部模块 | 有 |
+| `self.js` | 195 | 自我线：这个号也有自己的事在忙 | — | 有 |
+| `say.js` | 165 | 发送前的「人话自检」 | — | 有 |
+| `clock.js` | 164 | 历法感：知道今天是哪天、周几、什么时段、有没有节日 | — | 有 |
+
+### 主动与承诺（没人说话时它会不会开口、说到做不做）
+
+| 模块 | 行数 | 作用 | 依赖 | 自检 |
+| --- | --- | --- | --- | --- |
+| `longing.js` | 534 | 想念调度：没人找我时，我什么时候会主动想起某个人 | 8 个内部模块 | 有 |
+| `promises.js` | 446 | 记住「我说过要做的」，到点上主动提一句 | — | 有 |
+| `nick.js` | 302 | 聊天里改昵称（跟换头像同一套口径） | 3 个内部模块 | 有 |
+
+### 表情与头像（图片那一半的表达）
+
+| 模块 | 行数 | 作用 | 依赖 | 自检 |
+| --- | --- | --- | --- | --- |
+| `avatar.js` | 512 | 自己的头像：生成 / 挑选 / 更换 | 3 个内部模块 | 有 |
+| `stickers.js` | 454 | 表情包库：抓取 / 入库 / 描述 / 选图 / 发送 | 3 个内部模块 | 有 |
+| `sticker-fetch.js` | 289 | 「库里没有合适的，就自己上网找一张」 | 3 个内部模块 | 有 |
+| `make-stickers.py` | 253 | （无说明） | — | — |
+| `avatar-src.js` | 246 | 头像图片池（网上找的 + 别人发的那张） | 2 个内部模块 | 有 |
+| `make-avatar.js` | 131 | （无说明） | — | — |
+| `sticker_prep.py` | 83 | （无说明） | — | — |
+| `avatar_prep.py` | 67 | （无说明） | — | — |
+
+### 安全与节奏（别被封、别像机器）
+
+| 模块 | 行数 | 作用 | 依赖 | 自检 |
+| --- | --- | --- | --- | --- |
+| `risk.js` | 287 | （无说明） | — | 有 |
+| `pacing.js` | 182 | 一轮开始的节奏：返回 { switchMs, typingMs, fromKey, rapidCount } | — | 有 |
+
+### 自进化（参数自己调，不靠人改配置）
+
+| 模块 | 行数 | 作用 | 依赖 | 自检 |
+| --- | --- | --- | --- | --- |
+| `evolve.js` | 308 | 自进化：让「规则本身」也随真实对话慢慢调整 | — | 有 |
+
+### 控制台（不参与聊天链路：看状态、看会话、预演一句）
+
+| 模块 | 行数 | 作用 | 依赖 | 自检 |
+| --- | --- | --- | --- | --- |
+| `panel.js` | 760 | 本地可视化控制台（零依赖、只绑 127.0.0.1） | — | 有 |
+| `dryrun.js` | 209 | 「试一句」：拿真实记忆预演一次回复，但**绝不发送** | 1 个内部模块 | — |
+
+### 共享基础（所有模块共用的落盘工具）
+
+| 模块 | 行数 | 作用 | 依赖 | 自检 |
+| --- | --- | --- | --- | --- |
+| `lib/store.js` | 120 | 统一的 JSON 落盘工具（本项目所有模块共用的那一套「原子写」） | — | — |
+
+## 依赖关系（谁 require 了谁）
+
+| 模块 | 依赖 |
+| --- | --- |
+| `auto-reply.js` | `qq.js` `stickers.js` `vision.js` `context.js` `style.js` `echo.js` `mode.js` `risk.js` `group.js` `self.js` `clock.js` `say.js` `them.js` `timeline.js` `promises.js` `mind.js` `follow.js` `nick.js` `quote.js` `intercepts.js` `timers.js` `brain.js` `pacing.js` `voice.js` `bonds.js` `avatar-src.js` `sticker-fetch.js` |
+| `avatar-src.js` | `net.js` `lib/store.js` |
+| `avatar.js` | `risk.js` `avatar-src.js` `qq.js` |
+| `bench-models.js` | `net.js` |
+| `brain.js` | `net.js` `timeline.js` `stickers.js` |
+| `dryrun.js` | `auto-reply.js` |
+| `echo.js` | `lib/store.js` |
+| `intercepts.js` | `avatar.js` `nick.js` |
+| `longing.js` | `mind.js` `context.js` `brain.js` `promises.js` `clock.js` `bonds.js` `stickers.js` `auto-reply.js` |
+| `mind.js` | `bonds.js` `context.js` `brain.js` |
+| `mode.js` | `lib/store.js` |
+| `nick.js` | `mind.js` `bonds.js` `qq.js` |
+| `phone.js` | `pacing.js` |
+| `qr-render.js` | `qrcode.js` |
+| `quote.js` | `lib/store.js` |
+| `qzone-feed.js` | `qq.js` |
+| `sticker-fetch.js` | `net.js` `stickers.js` `vision.js` |
+| `stickers.js` | `lib/store.js` `qq.js` `vision.js` |
+| `style.js` | `mind.js` |
+| `them.js` | `context.js` |
+| `timeline.js` | `lib/store.js` `context.js` |
+| `timers.js` | `mind.js` `context.js` `brain.js` `risk.js` `longing.js` `evolve.js` `avatar.js` |
+| `vision.js` | `net.js` |
+| `voice.js` | `qq.js` |
+| `watchdog.js` | `risk.js` |
+
+## 配置（config/*.json）
+
+| 文件 | 大小 | 顶层键 | 谁在读 |
+| --- | --- | --- | --- |
+| `autoreply.bond-test.json` | 1243B | enabled, selfId, private, group, quietHours, limits, delayMs, rules … | `test-bond-e2e.js` |
+| `autoreply.ctx-test.json` | 924B | enabled, selfId, private, group, quietHours, limits, delayMs, rules … | `test-clock.js` `test-context.js` `test-promise-e2e.js` `test-self.js` `test-style.js` `test-them.js` `test-tone.js` |
+| `autoreply.json` | 4398B | enabled, selfId, private, group, quietHours, limits, delayMs, rules … | `auto-reply.js` `dryrun.js` `panel.js` |
+| `autoreply.merge-test.json` | 1228B | enabled, selfId, private, group, quietHours, limits, delayMs, rules … | `test-merge-live.js` `test-quote.js` `test-say.js` `test-typing.js` |
+| `autoreply.mind-test.json` | 1168B | enabled, selfId, private, group, quietHours, limits, delayMs, rules … | `test-mind-e2e.js` |
+| `autoreply.nick-test.json` | 882B | enabled, selfId, private, group, limits, delayMs, merge, quote … | `test-nick.js` |
+| `autoreply.offline-test.json` | 637B | enabled, selfId, private, group, quietHours, limits, delayMs, llm … | `test-offline.js` |
+| `autoreply.test.json` | 3580B | enabled, selfId, private, group, quietHours, limits, delayMs, rules … | `test-avatar-chat.js` `test-empty-bubble.js` `test-mode.js` `test-timeline.js` |
+| `avatar.json` | 757B | enabled, checkEveryHours, minGapDays, maxPerMonth, size, riskGate, source, chat | `avatar-src.js` `avatar.js` `panel.js` |
+| `bonds.json` | 444B | enabled, scale, axisCap, minChars, maxEvents, maxPulses, absenceHours, absenceDecayHours … | `bonds.js` |
+| `brain.json` | 683B | enabled, baseUrl, models, timeoutMs, maxTokens, temperature, historyTurns, affectMaxTokens … | `brain.js` `panel.js` |
+| `clock.json` | 494B | enabled, includeDate, forbidReadOut, holidays | `clock.js` |
+| `echo.json` | 559B | enabled, warmLatencyMs, coldLatencyMs, warmLenRatio, coldLenRatio, warmScore, coldScore, emaAlpha … | `echo.js` |
+| `evolve.json` | 398B | enabled, everyMin, apply, minRecords, window, step, maxDrift, coldRateHigh … | `evolve.js` |
+| `follow.json` | 374B | enabled, windowMin, extendMin, maxSessionMin, maxTurns, minChars, replyThreshold, missLimit | `follow.js` |
+| `group.json` | 337B | enabled, allowList, follow, allowNameMention | `group.js` |
+| `longing.json` | 1015B | enabled, checkEveryMin, maxPerCheck, intensityThreshold, minIdleHours, minTurns, perContactHours, perContactDaily … | `longing.js` |
+| `mind.json` | 728B | enabled, alpha, beta, relationRate, decayRate, gamma, hops, threshold … | `mind.js` |
+| `mode.json` | 934B | enabled, deepTokens, adviceTokens, comfortTokens, normalTokens, quickTokens, banterTokens, deepChars … | `mode.js` |
+| `nick.json` | 415B | enabled, minIntimacy, minTrust, partners, maxLen, aliasesKeep, cooldownMin, autoEnabled | `nick.js` |
+| `pacing.json` | 864B | enabled, charsPerSec, typingBaseMs, typingMinMs, typingMaxMs, jitter, switchBaseMs, switchMaxMs … | `pacing.js` |
+| `risk.json` | 500B | enabled, loginPerDayMax, restartPerDayMax, loginGapMin, dropWindowMin, dropThreshold, coolingHours, coolingHoursAfterLoginFail … | `risk.js` |
+| `self.json` | 2763B | enabled, minMinutes, maxMinutes, mentionProbability, mentionMinGapMin, askPattern, pools | `self.js` |
+| `style.json` | 469B | enabled, friendIntimacy, closeIntimacy, teaseIntimacy, softenTension, tenseTension, maxChars, lowEnergyFactor … | `panel.js` `style.js` |
+| `timeline.json` | 535B | enabled, maxHours, minMinutes, lookbackHours, maxItems, gapMin, keepSpans, onlyThem | `timeline.js` |
+
+## 环境变量
+
+| 变量 | 用途方 |
+| --- | --- |
+| `ADB_PATH` | `phone.js` |
+| `ANDROID_SERIAL` | `phone.js` |
+| `AUTOREPLY_CONFIG` | `auto-reply.js` |
+| `AUTOREPLY_DRY` | `auto-reply.js` `dryrun.js` `longing.js` `timers.js` |
+| `AUTOREPLY_INCOMING` | `auto-reply.js` |
+| `AUTOREPLY_KEEP_WAV` | `auto-reply.js` |
+| `AUTOREPLY_LOG` | `auto-reply.js` `dryrun.js` |
+| `AUTOREPLY_STATE` | `auto-reply.js` `dryrun.js` |
+| `AVATAR_PY` | `avatar-src.js` |
+| `BRAIN_CONFIG` | `brain.js` |
+| `OB11_BASE` | `qq.js` |
+| `OB11_TIMEOUT_MS` | `qq.js` |
+| `OB11_TOKEN` | `auto-reply.js` `qq.js` `setup-http.js` |
+| `OB11_WS` | `auto-reply.js` |
+| `QMIND_CONFIG` | `mind.js` |
+| `QQAVATARSRC_STATE_DIR` | `avatar-src.js` |
+| `QQAVATAR_CONFIG` | `avatar.js` |
+| `QQAVATAR_DIR` | `avatar.js` `dryrun.js` |
+| `QQAVATAR_OUT` | `avatar.js` |
+| `QQAVATAR_SRC_DIR` | `avatar-src.js` |
+| `QQBOND_DIR` | `bonds.js` `dryrun.js` |
+| `QQCTX_DIR` | `context.js` `dryrun.js` |
+| `QQECHO_DIR` | `dryrun.js` `echo.js` `evolve.js` |
+| `QQEVOLVE_CONFIG` | `evolve.js` |
+| `QQEVOLVE_DIR` | `dryrun.js` `evolve.js` |
+| `QQFETCH_DIR` | `sticker-fetch.js` |
+| `QQFOLLOW_DIR` | `dryrun.js` `follow.js` |
+| `QQGROUP_DIR` | `dryrun.js` `group.js` |
+| `QQLONGING_DIR` | `dryrun.js` `longing.js` |
+| `QQMIND_DIR` | `dryrun.js` `mind.js` |
+| `QQMODE_CONFIG` | `mode.js` |
+| `QQMODE_DIR` | `dryrun.js` `mode.js` |
+| `QQNICK_DIR` | `nick.js` |
+| `QQPACING_DIR` | `dryrun.js` `pacing.js` |
+| `QQPANEL_HOST` | `panel.js` |
+| `QQPANEL_PORT` | `panel.js` |
+| `QQPANEL_TOKEN` | `panel.js` |
+| `QQPROMISE_DIR` | `dryrun.js` `promises.js` |
+| `QQQUOTE_DIR` | `dryrun.js` `quote.js` |
+| `QQRISK_DIR` | `dryrun.js` `risk.js` |
+| `QQSELF_DIR` | `dryrun.js` `self.js` |
+| `QQSTICKER_BAN` | `stickers.js` |
+| `QQTHEM_DIR` | `dryrun.js` `them.js` |
+| `QQTIMELINE_DIR` | `timeline.js` |
+| `QQTRACE_DIR` | `dryrun.js` `mind.js` |
+| `QQTUNING_FILE` | `echo.js` `evolve.js` `style.js` |
+| `QQ_PKG` | `phone.js` |
+| `S` | `voice.js` |
+| `SELF_UIN` | `auto-reply.js` `dryrun.js` `stickers.js` |
+| `STICKER_DIR` | `sticker-fetch.js` `stickers.js` |
+| `STICKER_FETCH_DISABLED` | `sticker-fetch.js` |
+| `STICKER_FETCH_DRY` | `sticker-fetch.js` |
+| `STICKER_PYTHON` | `stickers.js` |
+| `VISION_ENDPOINT` | `vision.js` |
+| `VISION_TOKEN_FILE` | `vision.js` |
+
+## 落盘目录（logs/）
+
+| 目录/文件 | 写入方 |
+| --- | --- |
+| `logs/autoreply.log` | `panel.js` |
+| `logs/bonds` | `panel.js` |
+| `logs/inbox` | `panel.js` |
+| `logs/mind` | `panel.js` |
+| `logs/quotes` | `panel.js` |
+| `logs/say-bad` | `panel.js` `say.js` |
+| `logs/them` | `panel.js` |
+| `logs/watchdog.log` | `panel.js` |
+
+## 自检矩阵
+
+共 43 组：离线 43 组、在线 0 组（在线需要 NapCat + 模型）。
+
+| 组 | 文件 | 覆盖模块 |
 | --- | --- | --- |
-| `lib/store.js` | 所有 JSON 的原子读写（tmp+rename，4 次重试，坏文件改名 `.bad-*`） | — |
-| `scripts/qq.js` | OneBot HTTP 客户端（5s 超时；`send_private_msg` / `get_msg` / `set_input_status` …） | — |
-| `scripts/net.js` | HTTPS 请求封装（**不使用全局 fetch**，见下节） | — |
-| `scripts/context.js` | 分层上下文：原文窗口 + 滚动摘要 + facts；`ingest()` 补账 | `logs/context/<slug>.json` |
-| `scripts/mind.js` | 情感 PAD（二阶惯性）、关系四轴、联想记忆图、巩固与空闲反刍 | `logs/mind/*-state.json`、`*-graph.json`、`logs/trace/*.jsonl` |
-| `scripts/bonds.js` | 关系里程碑脉冲（见面/吵架/道歉/倾诉/久别重逢），读取时叠加衰减 | `logs/bonds/<slug>.json` |
-| `scripts/echo.js` | 从对方回复反推热络/敷衍/诉苦；两路反拨（情绪 + 关系） | `logs/echo/<slug>.json` |
-| `scripts/style.js` | 关系→说话的尺度；`softenText()` 降级；`isHarsh()` 判定 | — |
-| `scripts/promises.js` | 承诺抽取/命中/到期（`resolveDue` → `dueItems` → `dueNote`） | `logs/promises/<slug>.json` |
-| `scripts/longing.js` | 想念调度：`expectedHours` 由亲密度/信任/张力/显著性决定 | `logs/longing/*.json` |
-| `scripts/group.js` | 群聊插话闸门（被@ / 有人求助 / 不是两人私聊 / 不刷屏） | `logs/group/<gid>.json` |
-| `scripts/follow.js` | @ 之后「对话跟随」窗口：不 @ 也判断是不是跟你说、连续冷场两次就闭窗 | `logs/follow/<gid>-<uin>.json` |
-| `scripts/quote.js` | 引用消息解析（谁说的/多久前/含媒体）+ 磁盘缓存（取不到只缓 10 分钟） | `logs/quotes/<id>.json` |
-| `scripts/nick.js` | 聊天里改昵称；按亲密度/信任/伴侣名单授权，不够格只记 pending | `logs/nick/state.json` |
-| `scripts/avatar.js` `avatar-src.js` | 头像池（对方发的图 / 网上找的图）+ 聊天触发 + 间隔与风控闸门 | `assets/avatar-src/`、`logs/avatar/state.json` |
-| `scripts/self.js` | 按时段的「我在做什么」，缓存在进程内 | `logs/self/state.json` |
-| `scripts/clock.js` | 周几/节日/时段，缓存 60s | — |
-| `scripts/them.js` | 对方当前状态（7 类）+ 矛盾检测 | `logs/them/<slug>.json` |
-| `scripts/say.js` | 发送前的人话自检（9 类问题） | `logs/say-bad.jsonl` |
-| `scripts/stickers.js` | 表情库、复合情绪打分、`sub_type:1` 表情段、反馈学习 | `assets/stickers/index.json` |
-| `scripts/sticker-fetch.js` | 库里没有就上网找（fabiaoqing），视觉打标后入库 | `logs/sticker-fetch/state.json` |
-| `scripts/pacing.js` | 打字时长 / 切窗口时长 | `logs/pacing/state.json` |
-| `scripts/voice.js` | SAPI → wav → `record` 段（NapCat 自己转 silk） | `logs/voice/` |
-| `scripts/risk.js` | 风控闸门：分级动作、掉线熔断、登录额度 | `logs/risk/state.json` |
-| `scripts/evolve.js` | 自调参：统计判冷比例，写 `config/tuning.json` | `logs/evolve/feedback.jsonl` |
-| `scripts/phone.js` | A 通道：adb 操作手机官方 QQ（备用，不在主链路） | `logs/phone.log` |
+| `context` | `test-context.js` | `context.js` `auto-reply.js` `brain.js` |
+| `mind` | `test-mind.js` | `mind.js` `context.js` |
+| `bonds` | `test-bonds.js` | `bonds.js` `mind.js` `longing.js` |
+| `longing` | `test-longing.js` | `mind.js` `context.js` `longing.js` |
+| `longing-plus` | `test-longing-plus.js` | `mind.js` `context.js` `promises.js` `longing.js` `brain.js` |
+| `promises` | `test-promises.js` | `promises.js` `auto-reply.js` |
+| `promises-review` | `test-promises-review.js` | `promises.js` |
+| `say` | `test-say.js` | `qq.js` `say.js` `brain.js` `auto-reply.js` |
+| `typing` | `test-typing.js` | `qq.js` `brain.js` `auto-reply.js` `pacing.js` |
+| `pacing` | `test-pacing.js` | `pacing.js` |
+| `style` | `test-style.js` | `style.js` `brain.js` `mind.js` `auto-reply.js` |
+| `tone` | `test-tone.js` | `qq.js` `brain.js` `mind.js` `auto-reply.js` |
+| `mode` | `test-mode.js` | — |
+| `echo` | `test-echo.js` | `echo.js` `mind.js` `style.js` |
+| `them` | `test-them.js` | `them.js` `qq.js` `context.js` `brain.js` `auto-reply.js` |
+| `clock` | `test-clock.js` | `clock.js` `brain.js` `auto-reply.js` |
+| `remind` | `test-remind.js` | `promises.js` `mind.js` `context.js` `longing.js` |
+| `group` | `test-group.js` | `group.js` `auto-reply.js` |
+| `self` | `test-self.js` | `self.js` `brain.js` `auto-reply.js` |
+| `evolve` | `test-evolve.js` | `evolve.js` `echo.js` `style.js` |
+| `risk` | `test-risk.js` | `risk.js` |
+| `quote` | `test-quote.js` | `quote.js` `qq.js` `brain.js` `auto-reply.js` |
+| `timeline` | `test-timeline.js` | `timeline.js` `context.js` `brain.js` |
+| `phone` | `test-phone.js` | `phone.js` `pacing.js` |
+| `sticker-route` | `test-sticker-route.js` | `stickers.js` `auto-reply.js` |
+| `empty-bubble` | `test-empty-bubble.js` | `auto-reply.js` |
+| `panel` | `test-panel.js` | `panel.js` |
+| `sticker-combo` | `test-sticker-combo.js` | `brain.js` |
+| `sticker-fetch` | `test-sticker-fetch.js` | `sticker-fetch.js` `stickers.js` |
+| `sticker-learn` | `test-sticker-learn.js` | — |
+| `avatar` | `test-avatar.js` | `avatar.js` `avatar-src.js` `risk.js` `qq.js` |
+| `avatar-chat` | `test-avatar-chat.js` | `avatar.js` `avatar-src.js` `qq.js` `risk.js` `auto-reply.js` `brain.js` |
+| `follow` | `test-follow.js` | `follow.js` `group.js` `auto-reply.js` |
+| `nick` | `test-nick.js` | `nick.js` `mind.js` `auto-reply.js` `brain.js` |
+| `offline-catchup` | `test-offline.js` | `context.js` `qq.js` `auto-reply.js` |
+| `merge-live` | `test-merge-live.js` | `qq.js` `auto-reply.js` `say.js` |
+| `longing-live` | `test-longing-live.js` | `longing.js` `mind.js` |
+| `remind-live` | `test-remind-live.js` | `mind.js` `context.js` `promises.js` `longing.js` |
+| `clock-live` | `test-clock-live.js` | `clock.js` `brain.js` |
+| `promise-e2e` | `test-promise-e2e.js` | `auto-reply.js` `promises.js` `context.js` |
+| `bond-e2e` | `test-bond-e2e.js` | `auto-reply.js` `bonds.js` `mind.js` `longing.js` |
+| `mind-e2e` | `test-mind-e2e.js` | `mind.js` `auto-reply.js` |
+| `sweep-live` | `test-sweep-live.js` | `mind.js` `brain.js` |
 
-## 两条重要工程决定
+## 一致性检查
 
-### 1. 不用全局 fetch（Node 24 + 某些网络的 TLS 坑）
-
-实测过一种奇怪故障：`curl` 请求模型 API 正常 0.8s，但 Node 的 `fetch` 一直 `UND_ERR_CONNECT_TIMEOUT`。定位到 `net.connect` 到 IP:443 只要 69ms，而 `tls.connect({servername})` 超时；加上 `maxVersion: 'TLSv1.2'` 后 268ms 握手成功 —— TLS 1.3 的 PQ 混合密钥让 ClientHello 变大，被链路 MTU 丢弃。
-
-所以 `scripts/net.js` 默认用 TLS 1.2 发起请求，失败再退回默认重试；子进程用 `node --tls-max-v1.2` 启动。
-
-### 2. 状态全部是「可读、可删、可重算」的 JSON
-
-没有数据库、没有二进制快照。删掉 `logs/` 就等于重置记忆（上下文、记忆图、关系、承诺、表情学习分都是独立文件）；把某个文件拷到另一台机器，记忆就跟着走。写入统一走 `lib/store.js`，因为它踩过 Windows 上 `rename` 偶发 `EIO` 的坑 —— 静默丢写比写失败更可怕。
-
-## 数据流里的「不记账」纪律
-
-几乎所有副作用层（承诺提醒、想念开口、表情学习）都遵守同一句话：
-
-> **演练（`AUTOREPLY_DRY=1`）与发送失败，一律不记账。**
-
-否则跑一次测试就会把真实节奏吃掉：承诺被标记「已提醒」、想念冷却被推后 20 小时、表情学习分被演练的假对话污染。
-
-## 测试策略
-
-- 每层一个 `test-<layer>.js`，**全离线**：外部依赖（模型、OneBot、HTTP、adb）用注入桩替换，状态目录用 `QQ*_DIR` 环境变量隔离到 `logs/*-test/`；
-- 需要真东西的用例单独放 `test-*-live.js`，只做「抽样看口吻/延迟」，不做断言密集回归；
-- `test-all.js` 把 24 组离线用例串起来跑，`--all` 才带在线用例。
-
-隔离目录这件事是血的教训：早期有测试忘了设 `QQECHO_DIR`，把假对话写进了生产回响状态，导致真实会话的语气被带歪。
+✅ 无问题：分层完整、每个测试都注册了、没有残留补丁脚本、每份配置都有人读。

@@ -15,13 +15,22 @@ const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'stk-learn-'));
 const SDIR = path.join(TMP, 'stickers');
 fs.mkdirSync(path.join(SDIR, 'made'), { recursive: true });
 process.env.STICKER_DIR = SDIR;
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-sticker-learn-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-sticker-learn-test';
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-sticker-learn-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-sticker-learn-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-sticker-learn-test';
 try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 process.env.QQSTICKER_BAN = '';
 ['QQCTX_DIR', 'QQMIND_DIR', 'QQLONGING_DIR', 'QQPROMISE_DIR', 'QQBOND_DIR', 'QQECHO_DIR', 'QQTHEM_DIR', 'QQPACING_DIR', 'QQSELF_DIR', 'QQGROUP_DIR']
   .forEach((k) => { process.env[k] = path.join(TMP, k.toLowerCase()); });
+// 用生产配置做底，但关掉「忙时延迟回复」——否则 daytime 常在 focus 状态，handle 只会排期不会发
+const _cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'config', 'autoreply.json'), 'utf8'));
+_cfg.busy = { enabled: false };
+_cfg.private = { ...(_cfg.private || {}), enabled: true, allowList: [] };
+fs.writeFileSync(path.join(TMP, 'autoreply.json'), JSON.stringify(_cfg, null, 2));
+process.env.AUTOREPLY_CONFIG = path.join(TMP, 'autoreply.json');
 process.env.AUTOREPLY_LOG = path.join(TMP, 'autoreply-learn.log');
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-sticker-learn-' + process.pid + '.json';
 delete process.env.AUTOREPLY_DRY;
 
 let pass = 0; let fail = 0;

@@ -7,6 +7,8 @@ const fs = require('fs');
 const ROOT = path.resolve(__dirname, '..');
 
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-remind-live');process.env.QQECHO_DIR = path.join(ROOT, 'logs', 'echo-reecho-live');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-remind-live-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-remind-live-test';
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-remind-live-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-remind-live-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-remind-live-test';
 try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
@@ -17,6 +19,7 @@ process.env.QQLONGING_DIR = path.join(ROOT, 'logs', 'longing-remind-live');
 process.env.QQBOND_DIR = path.join(ROOT, 'logs', 'bonds-remind-live');
 process.env.QQTRACE_DIR = path.join(ROOT, 'logs', 'trace-remind-live');
 process.env.AUTOREPLY_LOG = path.join(ROOT, 'logs', 'autoreply-remind-live.log');
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-remind-live-' + process.pid + '.json';
 
 const mind = require('./mind.js');
 const context = require('./context.js');

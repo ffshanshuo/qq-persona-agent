@@ -17,6 +17,8 @@ const fs = require('fs');
 const ROOT = path.join(__dirname, '..');
 
 process.env.AUTOREPLY_CONFIG = process.env.AUTOREPLY_CONFIG || path.join(ROOT, 'config', 'autoreply.mind-test.json');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-mind-e2e-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-mind-e2e-test';
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-e2e');
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-mind-e2e-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-mind-e2e-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-mind-e2e-test';
@@ -25,6 +27,7 @@ process.env.QQTRACE_DIR = path.join(ROOT, 'logs', 'trace-e2e');
 process.env.QQCTX_DIR = path.join(ROOT, 'logs', 'context-e2e');
 process.env.QMIND_CONFIG = path.join(ROOT, 'logs', 'mind-e2e-none.json'); // 不读生产 config/mind.json
 process.env.AUTOREPLY_DRY = '1';
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-mind-e2e-' + process.pid + '.json';
 
 const SELF = 123456789;
 const PEER = 100000001; // 假事件里的对方（dry 模式不会真发出去）

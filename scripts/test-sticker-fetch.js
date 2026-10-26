@@ -11,10 +11,13 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const TMP = path.join(ROOT, 'assets', 'stickers-test');
 process.env.STICKER_DIR = TMP;
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-sticker-fetch-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-sticker-fetch-test';
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-sticker-fetch-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-sticker-fetch-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-sticker-fetch-test';
 try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 process.env.QQFETCH_DIR = path.join(ROOT, 'logs', 'sticker-fetch-test');
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-sticker-fetch-' + process.pid + '.json';
 
 // 干净夹具
 fs.rmSync(TMP, { recursive: true, force: true });

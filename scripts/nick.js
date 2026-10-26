@@ -132,6 +132,18 @@ function parseRequest(text) {
 
 /** 关系够不够改我的名字 */
 function canSuggest(key, opts = {}) {
+  // 恋人自动获得授权（不用再手填 partners 白名单）
+  try {
+    const ties = require('./ties.js');
+    if (ties.authorizedForProfile(key)) {
+      let rel = {};
+      try {
+        const st = require('./mind.js').loadState(key) || {};
+        rel = require('./bonds.js').effectiveRel(key, st.rel || {}, Date.now());
+      } catch (e) { }
+      return { ok: true, partner: true, why: '恋人', rel };
+    }
+  } catch (e) { }
   const o = opts.cfg || loadCfg();
   if (o.enabled === false) return { ok: false, why: 'nick-disabled' };
   let rel = { warmth: 0, trust: 0, intimacy: 0, tension: 0 };

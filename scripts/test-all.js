@@ -21,7 +21,16 @@ const OFFLINE = [
   ['context', 'test-context.js'],
   ['mind', 'test-mind.js'],
   ['bonds', 'test-bonds.js'],
+  ['ties', 'test-ties.js'],
+  ['presence', 'test-presence.js'],
+  ['voice', 'test-voice.js'],
+  ['rvc', 'test-rvc.js'],
+  ['voice-choice', 'test-voice-choice.js'],
+  ['burst', 'test-burst.js'],
+  ['busy-defer', 'test-busy-defer.js'],
+  ['prosody', 'test-prosody.js'],
   ['longing', 'test-longing.js'],
+  ['longing-plus', 'test-longing-plus.js'],
   ['promises', 'test-promises.js'],
   ['promises-review', 'test-promises-review.js'],
   ['say', 'test-say.js'],
@@ -29,6 +38,9 @@ const OFFLINE = [
   ['pacing', 'test-pacing.js'],
   ['style', 'test-style.js'],
   ['tone', 'test-tone.js'],
+  ['mode', 'test-mode.js'],
+  ['persona', 'test-persona.js'],
+  ['murmur', 'test-murmur.js'],
   ['echo', 'test-echo.js'],
   ['them', 'test-them.js'],
   ['clock', 'test-clock.js'],
@@ -37,8 +49,15 @@ const OFFLINE = [
   ['self', 'test-self.js'],
   ['evolve', 'test-evolve.js'],
   ['risk', 'test-risk.js'],
+  ['quote', 'test-quote.js'],
+  ['quote-out', 'test-quote-out.js'],
+  ['sticker-gif', 'test-sticker-gif.js'],
+  ['forward', 'test-forward.js'],
+  ['timeline', 'test-timeline.js'],
   ['phone', 'test-phone.js'],
   ['sticker-route', 'test-sticker-route.js'],
+  ['empty-bubble', 'test-empty-bubble.js'],
+  ['panel', 'test-panel.js'],
   ['sticker-combo', 'test-sticker-combo.js'],
   ['sticker-fetch', 'test-sticker-fetch.js'],
   ['sticker-learn', 'test-sticker-learn.js'],
@@ -106,6 +125,19 @@ function main() {
     console.log(`  ${mark} ${item.label.padEnd(18)} ${String(r.ms).padStart(6)}ms  ${num}  ${r.status === 'ok' ? '' : r.tail || ''}`);
   }
 
+  // 架构一致性（分层完整 / 每个测试都注册了 / 没有残留补丁脚本 / 每份配置都有人读）
+  let archOk = true;
+  if (!only) {
+    const arch = spawnSync(process.execPath, [path.join(SCRIPTS, 'arch.js'), '--check'], { cwd: ROOT, encoding: 'utf8' });
+    archOk = arch.status === 0;
+    console.log(`
+  架构检查  ${archOk ? '✓ 通过' : '✗ 有不一致'}`);
+    if (!archOk) {
+      const lines = String(arch.stdout || '').trim().split(/\r?\n/).slice(0, 8);
+      console.log(lines.join('\n'));
+    }
+  }
+
   const bad = results.filter((r) => r.status === 'fail');
   const ok = results.filter((r) => r.status === 'ok');
   const sumPassed = results.reduce((n, r) => n + (r.passed || 0), 0);
@@ -117,7 +149,7 @@ function main() {
     console.log('\n失败：');
     for (const r of bad) console.log(`  - ${r.label} (${r.file})\n    ${r.tail || '(无输出)'}`);
   }
-  process.exit(bad.length ? 1 : 0);
+  process.exit(bad.length || !archOk ? 1 : 0);
 }
 
 main();

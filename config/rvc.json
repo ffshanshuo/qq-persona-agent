@@ -1,0 +1,23 @@
+{
+  "enabled": true,
+  "baseUrl": "http://127.0.0.1:7898",
+  "convertPath": "/voice2voice",
+  "modelsPath": "/models",
+  "healthPath": "/docs",
+  "model": "heidanningning",
+  "indexRate": 0.75,
+  "f0UpKey": 0,
+  "protect": 0.33,
+  "method": "rmvpe",
+  "format": "wav",
+  "timeoutMs": 60000,
+  "probeMs": 2500,
+  "cache": true,
+  "cacheHours": 72,
+  "maxInputBytes": 36700160,
+  "fallback": "edge",
+  "_note": "RVC 换声渠道。本机没有 GPU/torch，跑不了 RVC 推理，所以这里只是客户端：先由 edge-tts/SAPI 合成语音（语气节奏由 prosody 控制），再把 wav 发给跑着 RVC 服务的机器换成目标音色。enabled 默认 false；要启用先起服务，再把 enabled 改 true、填 model（服务端 assets/weights 里的模型名，去 .pth 后缀），必要时用 f0UpKey 调音高（男转女 +12、女转男 -12）。",
+  "_compat": "兼容 RVC WebUI（api_240604.py，POST /voice2voice，字段 model_name/index_rate/f0_up_key/protect/method/format）、Applio 的 --api 服务，以及任何自建服务（改 convertPath/fields 即可）。",
+  "_env": "临时试另一台机器：RVC_BASE_URL / RVC_MODEL / RVC_ENABLED=1 覆盖配置。",
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
+}

@@ -16,6 +16,8 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 process.env.AUTOREPLY_LOG = path.join(ROOT, 'logs', 'autoreply-typing-test.log');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-typing-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-typing-test';
 process.env.AUTOREPLY_CONFIG = path.join(ROOT, 'config', 'autoreply.merge-test.json');
 process.env.QQCTX_DIR = path.join(ROOT, 'logs', 'context-typing-test');
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-typing-test');process.env.QQECHO_DIR = path.join(ROOT, 'logs', 'echo-typing-test');
@@ -30,6 +32,7 @@ process.env.QQGROUP_DIR = path.join(ROOT, 'logs', 'group-typing-test');
 process.env.QQLONGING_DIR = path.join(ROOT, 'logs', 'longing-typing-test');
 process.env.QQBOND_DIR = path.join(ROOT, 'logs', 'bonds-typing-test');
 process.env.QQPACING_DIR = path.join(ROOT, 'logs', 'pacing-typing-test');
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-typing-' + process.pid + '.json';
 delete process.env.AUTOREPLY_DRY;
 
 const qq = require('./qq.js');

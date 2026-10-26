@@ -9,8 +9,11 @@ const path = require('path');
 const fs = require('fs');
 const ROOT = path.join(__dirname, '..');
 process.env.QQLONGING_DIR = process.env.QQLONGING_DIR || path.join(ROOT, 'logs', 'longing-live');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-longing-live-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-longing-live-test';
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-longing-live-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-longing-live-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-longing-live-test';
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-longing-live-' + process.pid + '.json';
 try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 
 const longing = require('./longing.js');

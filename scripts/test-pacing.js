@@ -2,8 +2,11 @@
 // pacing.js 离线测试：node scripts/test-pacing.js
 const path = require('path');
 process.env.QQPACING_DIR = path.join(__dirname, '..', 'logs', 'pacing-test');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-pacing-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-pacing-test';
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-pacing-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-pacing-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-pacing-test';
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-pacing-' + process.pid + '.json';
 try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 const fs = require('fs');
 try { fs.rmSync(process.env.QQPACING_DIR, { recursive: true, force: true }); } catch (e) { }

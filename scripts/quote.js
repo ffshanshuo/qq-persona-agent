@@ -265,7 +265,61 @@ function clearCache(cfg) {
   return n;
 }
 
+/** 字符二元组（粗比较「话头像不像」，不依赖分词） */
+function bigrams(s) {
+  const t = String(s || '').replace(/\s+/g, '');
+  const out = new Set();
+  for (let i = 0; i < t.length - 1; i++) out.add(t.slice(i, i + 2));
+  return out;
+}
+
+/**
+ * 主动引用：从这段关系最近的对话里，挑一条「值得被接上」的旧消息。
+ * 排除：自己说的、没有真 seq 的、太短的、纯媒体、吵架/负面、太久以前的。
+ * @returns {{seq:string,text:string,at:number,score:number,why:string}|null}
+ */
+function pickForQuote(key, opts = {}) {
+  const o = { ...DEFAULTS, ...(opts.cfg || {}) };
+  if (o.enabled === false) return null;
+  const maxAgeDays = Number(opts.maxAgeDays || 7);
+  const minChars = Number(opts.minChars || 6);
+  const now = Number(opts.now) || Date.now();
+  const topic = bigrams(opts.topic || '');
+  let history = [];
+  try { history = require('./context.js').view(key, { now }).history || []; } catch (e) { return null; }
+  const NEG = /滚|闭嘴|别烦|讨厌|生气|吵架|失望|不理你|分手|懒得|烦死/;
+  const cands = [];
+  for (const h of history) {
+    if (!h || h.from === 'me') continue;
+    const seq = h.seq != null ? String(h.seq) : '';
+    if (!seq) continue;
+    const text = String(h.text || '').trim();
+    if (text.length < minChars) continue;
+    if (/^\[(图片|表情包|语音|视频|文件|合并转发)/.test(text)) continue;
+    if (NEG.test(text)) continue;
+    const ageH = (now - Number(h.t || 0)) / 3600e3;
+    if (!(ageH >= 0) || ageH > maxAgeDays * 24) continue;
+    let score = 0;
+    if (topic.size) {
+      const b = bigrams(text);
+      let hit = 0;
+      for (const x of topic) if (b.has(x)) hit++;
+      score += hit * 2;
+    }
+    if (/答应|说好|约好|一起|下次|回头|到时候|周末|明天|考完/.test(text)) score += 3;
+    if (text.length >= 10) score += 1;
+    score += Math.max(0, 3 - ageH / 48);
+    cands.push({ seq, text: text.slice(0, 200), at: Number(h.t) || 0, score: Math.round(score * 100) / 100 });
+  }
+  if (!cands.length) return null;
+  cands.sort((a, b) => b.score - a.score || b.at - a.at);
+  const best = cands[0];
+  best.why = topic.size ? '跟这次的话头对得上' : '最近说过的一句';
+  return best;
+}
+
 module.exports = {
+  pickForQuote, bigrams,
   DEFAULTS, options, DIR, dirOf, fileOf, ensureDir,
   kindsOf, textOfSegs, imageFilesOf, parse, fetchOne, collect,
   whenText, whoText, describe, noteFor, state, clearCache

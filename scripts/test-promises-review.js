@@ -8,8 +8,11 @@ const path = require('path');
 const fs = require('fs');
 const ROOT = path.join(__dirname, '..');
 process.env.QQPROMISE_DIR = path.join(ROOT, 'logs', 'promises-review');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-promises-review-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-promises-review-test';
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-promises-review-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-promises-review-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-promises-review-test';
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-promises-review-' + process.pid + '.json';
 try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 
 const promises = require('./promises.js');

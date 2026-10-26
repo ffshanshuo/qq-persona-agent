@@ -81,6 +81,8 @@ ok('tomorrowWeekday 是周六', info.tomorrowWeekday === '周六', info.tomorrow
 
 // ── 8) 与 auto-reply 接线：ctx.note 里有历法提示
 process.env.AUTOREPLY_DRY = '1';
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-clock-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-clock-test';
 process.env.AUTOREPLY_LOG = path.join(ROOT, 'logs', 'autoreply-clock-test.log');
 process.env.QQMIND_DIR = path.join(ROOT, 'logs', 'mind-clock-test');
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-clock-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-clock-test';
@@ -93,6 +95,7 @@ process.env.QQBOND_DIR = path.join(ROOT, 'logs', 'bonds-clock-test');
 process.env.QQSELF_DIR = path.join(ROOT, 'logs', 'self-clock-test');
 process.env.QQGROUP_DIR = path.join(ROOT, 'logs', 'group-clock-test');
 process.env.AUTOREPLY_CONFIG = path.join(ROOT, 'config', 'autoreply.ctx-test.json');
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-clock-' + process.pid + '.json';
 const fs = require('fs');
 try { fs.rmSync(process.env.AUTOREPLY_LOG, { force: true }); } catch (e) { /* ignore */ }
 

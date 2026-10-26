@@ -10,7 +10,10 @@
 'use strict';
 const path = require('path');
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-sticker-route-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-sticker-route-test';
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-sticker-route-test';
+process.env.QQRISK_DIR = __dirname + '/../logs/risk-sticker-route-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-sticker-route-test';
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-sticker-route-' + process.pid + '.json';
 try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
 const ROOT = path.resolve(__dirname, '..');
 

@@ -12,6 +12,7 @@ const ROOT = path.join(__dirname, '..');
 const T = (p) => path.join(ROOT, 'logs', p);
 
 process.env.QQAVATAR_DIR = T('avatar-chat-test');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-avatar-chat-test';
 process.env.QQAVATAR_OUT = path.join(ROOT, 'assets', 'avatars-chat-test');
 process.env.QQAVATAR_SRC_DIR = T('avatar-src-chat-test');
 process.env.QQAVATARSRC_STATE_DIR = T('avatar-src-state-chat-test');
@@ -196,9 +197,9 @@ ok('空文本不命中', avatar.parseRequest('').hit === false);
 
   console.log('§3 风控闸门');
   const risk = require('./risk.js');
-  risk.noteDrop('t1', T0);
-  risk.noteDrop('t2', T0 + 60000);
-  r = await avatar.chatTrigger({ key: 'p:100000001', text: '换个头像', now: T0 + 55 * 60000 });
+  risk.noteDrop('t1', Date.now());
+  risk.noteDrop('t2', Date.now() + 60000);
+  r = await avatar.chatTrigger({ key: 'p:100000001', text: '换个头像', now: Date.now() + 55 * 60000 });
   ok('冷却期拒绝换头像', r.changed === false && /risk:/.test(r.why || ''), r);
   ok('冷却期文案说明是安全闸门', /安全闸门|闸门/.test(avatar.replyText(r)), avatar.replyText(r));
 

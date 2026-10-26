@@ -15,6 +15,7 @@ const zlib = require('zlib');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'qq-avatar-'));
 
 process.env.QQAVATAR_DIR = path.join(TMP, 'logs-avatar');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-avatar-test';
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-avatar-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-avatar-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-avatar-test';
 try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }
@@ -23,6 +24,7 @@ process.env.QQAVATAR_SRC_DIR = path.join(TMP, 'src');
 process.env.QQAVATAR_CONFIG = path.join(TMP, 'avatar.json');
 process.env.QQAVATARSRC_STATE_DIR = path.join(TMP, 'src-state');
 process.env.QQRISK_DIR = path.join(TMP, 'risk');
+process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-avatar-' + process.pid + '.json';
 
 fs.mkdirSync(process.env.QQAVATAR_SRC_DIR, { recursive: true });
 fs.writeFileSync(path.join(TMP, 'avatar.json'), JSON.stringify({

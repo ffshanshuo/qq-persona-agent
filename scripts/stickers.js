@@ -28,7 +28,7 @@ const CUSTOM = path.join(DIR, 'custom');
 const MADE = path.join(DIR, 'made');
 const INDEX = path.join(DIR, 'index.json');
 const PREP = path.join(ROOT, 'scripts', 'sticker_prep.py');
-const PY = process.env.STICKER_PYTHON || 'C:/Users/user/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/python.exe';
+const PY = process.env.STICKER_PYTHON || '$HOME/.dsh/dsh-runtimes/dsh-primary-runtime/dependencies/python/python.exe';
 
 function ensureDirs() { for (const d of [DIR, CUSTOM, MADE]) fs.mkdirSync(d, { recursive: true }); }
 
@@ -83,6 +83,25 @@ function faceStickers() {
 
 // ── 动图 → PNG 拼图（视觉模型只吃 png/jpeg） ──────────────────────────────
 function isVisionReady(file) { return /\.(png|jpe?g)$/i.test(file); }
+
+/** 动图拆帧：调 sticker_prep.py --anim 生成 1~2 张 2x2 帧拼图 + 帧差统计（带缓存） */
+function animSheets(file) {
+  const base = path.join(path.dirname(file), path.basename(file, path.extname(file)) + '.anim');
+  const metaFile = base + '.json';
+  try {
+    const st = fs.statSync(file);
+    if (fs.existsSync(metaFile) && fs.statSync(metaFile).mtimeMs >= st.mtimeMs) {
+      const j = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
+      if (j && Array.isArray(j.sheets) && j.sheets.every(f => fs.existsSync(f))) return { ...j, cached: true };
+    }
+  } catch (e) { /* 缓存坏了就重算 */ }
+  const { execFileSync } = require('child_process');
+  const out = execFileSync(PY, [PREP, file, '--anim', base], { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8' });
+  const j = JSON.parse(String(out).trim().split('\n').pop());
+  j.base = base;
+  fs.writeFileSync(metaFile, JSON.stringify(j, null, 2), 'utf8');
+  return { ...j, cached: false };
+}
 
 function prepWithPython(file) {
   const out = path.join(path.dirname(file), path.basename(file, path.extname(file)) + '.sheet.png');
@@ -387,18 +406,40 @@ function segmentOf(s, { asSticker = true } = {}) {
   return { type: 'image', data };
 }
 
-/** 从 brain 原始输出里抽出 [[表情:xxx]] 指令 */
+// 模型有时写 [[表情:x]]，有时写 [表情:x] / 【表情:x】 / ［表情:x］——只要漏剥一种，
+// 标记就会原样发到对方聊天框（2026-10-24 真事故：对方收到「[表情:好笑+无语]」）。
+// 所以双括/单括、半角/全角都认；提取完再做一遍兜底清扫，连写残缺的标记也不放过。
+const DIRECTIVE_OPEN = /(?:\[\[|［［|【|［|\[)\s*(?:表情包|表情|sticker|emoji|贴图)\s*[:：]\s*([^\]\】］\n]{1,40})\s*(?:\]\]|］］|\】|］|\])/gi;
+const DIRECTIVE_LEFTOVER = /(?:\[\[|［［|【|［|\[)\s*(?:表情包|表情|sticker|emoji|贴图)\s*[:：][^\]\】］\n]{0,40}(?:\]\]|］］|\】|］|\])?/gi;
+/** 「这一句用语音说」的标记：[[语音]] / [[voice]] / 【语音】。只认双括号或【】，避免误伤历史里的 [语音] 占位符。 */
+// 括号容错：双角/全角/【】/[ ] 全认——模型经常把 [[语音]] 写成 [语音]，
+// 而单方括号漏掉就会原样发进聊天框（2026-10-26 真事故：「…下次练练再来 [语音]」）。
+const VOICE_DIRECTIVE = /(?:\[\[|［［|【|\[|［)\s*(?:语音|voice|发语音|朗读)\s*(?:\]\]|］］|\】|\]|］)/gi;
+/** 残缺的语音标记（模型把 [[语音 写一半就不写了）：只擦末尾那种，避免误伤正文里的方括号。 */
+const VOICE_DANGLE = /\[\[\s*(?:语音|voice|发语音|朗读)?[^\]\n]{0,4}\]?\s*$|[【［]\s*(?:语音|voice)[^\]\】\n]{0,2}(?:[\]\】])?\s*$/gi;
+
+/** 从 brain 原始输出里抽出表情指令（兼容单/双/全角括号） */
+const BURST_SPLIT = /\[\[\s*(?:分条|换条|下一条|另起一条)\s*\]\]|【\s*分条\s*】/;
 function extractDirective(raw) {
   let t = String(raw ?? '');
   let key = '';
-  const re = /\[\[\s*(?:表情|sticker|emoji)\s*[:：]\s*([^\]\n]{1,30})\s*\]\]/gi;
-  const m = re.exec(t);
+  let voice = false;
+  // 连发多条：[[语音]] 属于「某一条」，交给 auto-reply 的 parseBurst 逐条处理；
+  // 这里既不全局置 voice=true，也不剥掉（2026-10-26）
+  const burst = BURST_SPLIT.test(t);
+  if (!burst && VOICE_DIRECTIVE.test(t)) voice = true;
+  VOICE_DIRECTIVE.lastIndex = 0;
+  if (!burst) t = t.replace(VOICE_DIRECTIVE, '').replace(VOICE_DANGLE, '');
+  const m = DIRECTIVE_OPEN.exec(t);
   if (m) {
     // 复合情绪里手写的空格要收掉：'无奈 + 难过' → '无奈+难过'
     key = m[1].replace(/\s*([+＋/\\、,，·・&|｜])\s*/g, '$1').replace(/\s+/g, ' ').trim();
   }
-  t = t.replace(re, '').trim();
-  return { text: t, stickerKey: key };
+  DIRECTIVE_OPEN.lastIndex = 0;
+  t = t.replace(DIRECTIVE_OPEN, '');
+  t = t.replace(DIRECTIVE_LEFTOVER, '');
+  t = t.replace(/[ \t]{2,}/g, ' ').replace(/\s*\n+\s*/g, '\n').trim();
+  return { text: t, stickerKey: key, voice };
 }
 
 // ── CLI ───────────────────────────────────────────────────────────────────
@@ -442,4 +483,5 @@ if (require.main === module) {
   })().catch((e) => { console.error('失败:', e.message); process.exit(1); });
 }
 
-module.exports = { splitEmotions, scorePart, judgeReaction, noteSent, noteOutcome, noteDislike, learnScore, biasOf, isAutoBanned, LEARN, refresh, addLocal, loadIndex, saveIndex, allStickers, catalog, pick, segmentOf, extractDirective, visionFile, faceStickers, FACES, DEFAULT_BAN, banPrefixesOf, isBanned };
+module.exports = {
+  VOICE_DIRECTIVE, VOICE_DANGLE, animSheets, splitEmotions, scorePart, judgeReaction, noteSent, noteOutcome, noteDislike, learnScore, biasOf, isAutoBanned, LEARN, refresh, addLocal, loadIndex, saveIndex, allStickers, catalog, pick, segmentOf, extractDirective, visionFile, faceStickers, FACES, DEFAULT_BAN, banPrefixesOf, isBanned };

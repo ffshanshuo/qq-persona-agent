@@ -18,6 +18,7 @@ for (const k of ['QQMIND_DIR', 'QQTRACE_DIR', 'QQCTX_DIR', 'QQPROMISE_DIR', 'QQB
   process.env[k] = path.join(ROOT, 'logs', 'them-test-' + k.toLowerCase());
 }
 process.env.QQECHO_DIR = path.join(ROOT, 'logs', 'echo-them-test');
+process.env.QQMODE_DIR = __dirname + '/../logs/mode-them-test';
 process.env.QQFOLLOW_DIR = __dirname + '/../logs/follow-them-test';process.env.QQNICK_DIR = __dirname + '/../logs/nick-them-test';
 process.env.QQQUOTE_DIR = __dirname + '/../logs/quotes-them-test';
 try { require('fs').rmSync(process.env.QQQUOTE_DIR, { recursive: true, force: true }); } catch (e) { }

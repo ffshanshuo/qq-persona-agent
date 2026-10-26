@@ -93,6 +93,7 @@ function styleOf(input = {}, cfg) {
   let allowIntimate = register === 'close' && !soften;
   // 回响层（echo.js）：TA 这几句回得冷/热，会直接改这一句的尺度
   const echo = input.echo || null;
+  const tie = String(input.tie || ''); // lover / ex-cooling / ex / ''
   const streakCold = Number(echo && echo.streakCold) || 0;
   const streakWarm = Number(echo && echo.streakWarm) || 0;
   const echoCold = streakCold >= 2;
@@ -129,6 +130,11 @@ function styleOf(input = {}, cfg) {
   if (echoCold) parts.push('TA 这几句回得短、有点敷衍，像在忙或者不想聊：别黏、别追问、别连着撒娇，话少一点、留点余地。');
   else if (echoWarm) parts.push('TA 这几句回得挺热络、还主动接话：可以放松些，但别一下子过火。');
   else if (echo && echo.lastKind === 'cold') parts.push('TA 刚回得比较简短，可能手头有事：别多想，也别一下子发一大段。');
+  // 关系类型（ties.js）：恋人和前任说的不是同一套话
+  if (tie === 'lover') parts.push('你们是恋人：可以更亲一点（称呼、语气都可以），但别腻、别每句都撒娇。');
+  else if (tie === 'ex-cooling') parts.push('你们还在冷战：别装没事，也别追问「我们到底算什么」，语气先软下来，一句就够。');
+  else if (tie === 'ex') parts.push('已经是前任了：礼貌但不亲昵，别撒娇、别用以前那些称呼、也别翻旧账。');
+
   if (register === 'distant') parts.push('整句尽量控制在 45 字以内。');
   else if (sleepy) parts.push('一句话就够，别超过四五十字。');
 
@@ -231,7 +237,48 @@ function describe(key) {
   return { key, rel, pad, style };
 }
 
-module.exports = { DEFAULTS, CFG_PATH, loadCfg, registerOf, styleOf, softenText, isHarsh, HARSH_WORDS, clip, describe };
+// ---- 说话的习惯（口癖）：每个会话固定 1-2 条，换会话才变，免得像每次在演 ----
+const HABITS = [
+  { id: 'tail', tip: '句尾偶尔带「啦」「啊」「嘛」，别每句都带' },
+  { id: 'repeat', tip: '偶尔把词重复一下（好好好、嗯嗯、行行），像随口应' },
+  { id: 'ellipsis', tip: '想事情或没说完时用「…」拖一下，别每句都工整' },
+  { id: 'filler', tip: '偶尔用「就」「反正」「其实」这类口头填充词' },
+  { id: 'nosubject', tip: '有时省主语（「困了」「饿了」「刚回来」），不用每句都带「我」' },
+  { id: 'bracket', tip: '偶尔用括号补一句心里话（像打字时顺手补的）' },
+  { id: 'laugh', tip: '被逗到时用「哈哈哈」或「笑死」，别用「很有趣」这种书面说法' },
+  { id: 'dialect', tip: '极偶尔带一点方言味儿（「整半天」「老好使了」），一点点就够' }
+];
+
+function hashOf(s) {
+  const t = String(s == null ? '' : s);
+  let h = 2166136261;
+  for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i) & 0xff; h = (h * 16777619) >>> 0; }
+  return h >>> 0;
+}
+
+/**
+ * 这个会话固定的口癖（同一 key 永远一样）。
+ * @param {string} key
+ * @param {number} [count] 1-3，默认 2
+ * @returns {Array<{id:string,tip:string}>}
+ */
+function habitsOf(key, count) {
+  const n = Math.max(1, Math.min(3, count == null ? 2 : Number(count) || 2));
+  const h = hashOf(key || 'x');
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const it = HABITS[(h + i * 7) % HABITS.length];
+    if (!out.some(x => x.id === it.id)) out.push(it);
+  }
+  return out;
+}
+
+/** 拼成给模型的一句人话（不提规则名、不提「习惯」以外的元信息） */
+function habitHint(key, count) {
+  const tips = habitsOf(key, count).map(x => x.tip).join('；');
+  return '你（DSH）跟 TA 说话有这些个人习惯（自然带出来就行：最多三分之一的话带一点，别每条都用，也别解释自己在这么做）：' + tips;
+}
+module.exports = { DEFAULTS, CFG_PATH, loadCfg, registerOf, styleOf, softenText, isHarsh, HARSH_WORDS, clip, describe, HABITS, habitsOf, habitHint, hashOf };
 
 if (require.main === module) {
   const arg = process.argv[2];
