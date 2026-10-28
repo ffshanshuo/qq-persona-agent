@@ -25,7 +25,7 @@ const LAYERS = [
   { id: 'entry', name: '入口与运维', why: '进程怎么起、怎么活、怎么停', files: [
     'auto-reply.js', 'watchdog.js', 'start-qq.js', 'stop-qq.js', 'status.js', 'collector.js', 'setup-http.js', 'enable-ws.js', 'arch.js'] },
   { id: 'orchestrate', name: '请求编排', why: '从 auto-reply 里拆出来的两块：不过模型的即时指令、后台定时器', files: [
-    'intercepts.js', 'timers.js'] },
+    'intercepts.js', 'timers.js', 'autonomy.js', 'selfwrite.js'] },
   { id: 'channel', name: '通道与协议', why: 'OneBot 收发、网络、语音、空间、A 通道', files: [
     'qq.js', 'net.js', 'voice.js', 'rvc.js', 'prosody.js', 'local_vc.py', 'qzone-feed.js', 'phone.js', 'wc.js', 'qr-render.js'] },
   { id: 'model', name: '模型与多模态', why: '说话与看图都从这里出', files: [
@@ -33,16 +33,16 @@ const LAYERS = [
   { id: 'context', name: '上下文与记忆', why: '记得住、接得上、分得清场景', files: [
     'context.js', 'mind.js', 'them.js', 'quote.js', 'forward.js', 'follow.js', 'group.js', 'timeline.js'] },
   { id: 'persona', name: '情绪 · 关系 · 语气', why: '同一件事，用什么态度说', files: [
-    'echo.js', 'bonds.js', 'ties.js', 'style.js', 'say.js', 'self.js', 'clock.js', 'mode.js', 'presence.js', 'murmur.js', 'persona.js'] },
-  { id: 'initiative', name: '主动与承诺', why: '没人说话时它会不会开口、说到做不做', files: [
+    'echo.js', 'bonds.js', 'ties.js', 'style.js', 'say.js', 'self.js', 'clock.js', 'mode.js', 'prompt.js', 'presence.js', 'murmur.js', 'persona.js'] },
+  { id: 'initiative', name: '主动与承诺', why: '没人说话时它会不会开口、说到做不做', files: ['watch.js', 
     'longing.js', 'promises.js', 'nick.js'] },
   { id: 'expression', name: '表情与头像', why: '图片那一半的表达', files: [
     'stickers.js', 'sticker-fetch.js', 'avatar.js', 'avatar-src.js', 'make-avatar.js',
     'sticker_prep.py', 'avatar_prep.py', 'make-stickers.py'] },
   { id: 'safety', name: '安全与节奏', why: '别被封、别像机器', files: [
     'risk.js', 'pacing.js'] },
-  { id: 'evolve', name: '自进化', why: '参数自己调，不靠人改配置', files: [
-    'evolve.js'] },
+  { id: 'evolve', name: '自进化', why: '参数自己调、规则自己改、改完自己评估（改坏了能回滚）', files: [
+    'evolve.js', 'selfmod.js'] },
   { id: 'console', name: '控制台', why: '不参与聊天链路：看状态、看会话、预演一句', files: [
     'panel.js', 'dryrun.js'] },
   { id: 'base', name: '共享基础', why: '所有模块共用的落盘工具', files: [

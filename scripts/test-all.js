@@ -28,6 +28,7 @@ const OFFLINE = [
   ['voice-choice', 'test-voice-choice.js'],
   ['burst', 'test-burst.js'],
   ['busy-defer', 'test-busy-defer.js'],
+    ['hot-chat', 'test-hot-chat.js'],
   ['prosody', 'test-prosody.js'],
   ['longing', 'test-longing.js'],
   ['longing-plus', 'test-longing-plus.js'],
@@ -47,6 +48,13 @@ const OFFLINE = [
   ['remind', 'test-remind.js'],
   ['group', 'test-group.js'],
   ['self', 'test-self.js'],
+  ['autonomy', 'test-autonomy.js'],
+    ['autonomy-plan', 'test-autonomy-plan.js'],
+    ['watch', 'test-watch.js'],
+    ['selfmod', 'test-selfmod.js'],
+    ['prompt', 'test-prompt.js'],
+  ['autonomy-tone', 'test-autonomy-tone.js'],
+    ['selfwrite', 'test-selfwrite.js'],
   ['evolve', 'test-evolve.js'],
   ['risk', 'test-risk.js'],
   ['quote', 'test-quote.js'],
@@ -93,7 +101,7 @@ function runOne(label, file, args) {
   if (!fs.existsSync(target)) return { label, file, status: 'missing', note: '脚本不存在' };
   const t0 = Date.now();
   const r = spawnSync(process.execPath, [target].concat(args || []), {
-    cwd: ROOT, encoding: 'utf8', timeout: 10 * 60 * 1000,
+    cwd: ROOT, encoding: 'utf8', timeout: 10 * 60 * 1000, maxBuffer: 64 * 1024 * 1024,
     env: { ...process.env, NO_COLOR: '1' },
   });
   const ms = Date.now() - t0;

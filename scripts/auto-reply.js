@@ -13,6 +13,9 @@ const vision = require('./vision.js');
 const ctxStore = require('./context.js');
 const style = require('./style.js');
 const persona = require('./persona.js');
+const autonomy = require('./autonomy.js');
+const selfwrite = require('./selfwrite.js');
+const selfmod = require('./selfmod.js');
 const echo = require('./echo.js');
 const mode = require('./mode.js'); // 思维模式（这轮该先接情绪 / 给建议 / 讲原理 / 一句带过）
 const risk = require('./risk.js'); // 风控闸门：冷却期/额度受限时禁止发送
@@ -23,6 +26,7 @@ const say = require('./say.js');
 const them = require('./them.js');
 const timeline = require('./timeline.js'); // 时间线（从时间戳算「去洗澡→洗完了 约 10 分钟」） // 人话自检（发送前扫中英混杂/助手口气/列清单/复述画面） // 历法感（今天周几/节日/时段） // 自我线（我也有自己的事在忙） // 群聊在场感（该不该插话） // 说话的分寸（关系/心情 → 尺度）
 const promises = require('./promises.js');
+const watch = require('./watch.js'); // 反复盯着消息看：话头悬着没人接时自己决定要不要追问
 const mind = require('./mind.js');
 const follow = require('./follow.js'); // 群聊被 @ 之后，接着那几句话继续听
 const nick = require('./nick.js'); // 聊天里改昵称（只听关系够近的人）；currentNames 也给群聊跟随用
@@ -242,7 +246,8 @@ function compose(evt, c, key) {
       try { re = new RegExp(r.match); } catch (e) { continue; }
       if (re.test(text)) { fallback = r.reply; rule = r.id; break; }
     }
-    if (!fallback) fallback = c.defaultReply || '我暂时不在，看到就回你～';
+    // 2026-10-27 用户要求删掉固定回复：没有模板就不兜模板（brain 失败另有重投逻辑）
+    if (!fallback) fallback = c.defaultReply || '';
   }
   const lim = c.limits || {};
   // 频率限制：填 0（或不填负数）＝不限制。默认就不限——回复节奏已经由 pacing 按真人来，
@@ -400,6 +405,68 @@ function saySettings() { return { ...say.DEFAULTS, ...((cfgNow().say) || {}) }; 
 function echoSettings() { return { ...echo.DEFAULTS, ...((cfgNow().echo) || {}) }; }
 function modeSettings() { return { ...mode.DEFAULTS, ...((cfgNow().mode) || {}) }; }
 function personaSettings() { return { ...persona.DEFAULTS, ...((cfgNow().persona) || {}) }; }
+
+function watchSettings() { return { ...((cfgNow().watch) || {}) }; }
+
+/**
+ * 话头悬着没人接 → 自己去追问一句
+ * item 来自 watch.due()：{kind:'my-q'|'their-q', text, idleMin}
+ * 只在真发成功才记账；dry 与失败都不记（否则演练一次就把这轮追问吃掉）
+ */
+async function sendWatchFollowUp(key, item, opts) {
+  const o = opts || {};
+  const dry = o.dry != null ? !!o.dry : (process.env.AUTOREPLY_DRY === '1');
+  if (String(key || '').startsWith('g:')) return { ok: false, why: 'group-not-supported' };
+  try {
+    const gate = risk.gate('proactive');
+    if (!gate.ok) { log({ event: 'watch-skip', key, why: 'risk: ' + gate.why }); return { ok: false, why: 'risk' }; }
+  } catch (e) { }
+  let v;
+  try { v = ctxStore.view(key); } catch (e) { v = { history: [] }; }
+  const kindOf = (item && item.kind) || 'my-q';
+  const said = String((item && item.text) || '').slice(0, 80);
+  const idleMin = Number(item && item.idleMin) || null;
+  const peer = String(key || '').replace(/^p:/, '');
+  const nick = (v.history || []).filter(h => h.from !== 'me').slice(-1).map(h => h.speaker)[0] || '对方';
+  const instruction = kindOf === 'my-q'
+    ? '你之前问过 TA 一句「' + said + '」，到现在' + (idleMin ? '（' + idleMin + ' 分钟）' : '') + '都没回你。' +
+      '现在你自己惦记起这件事了：可以再问一句、换个更轻的说法、或者干脆不提（说点别的）。' +
+      '别质问、别说「你怎么不回我」、别催、别说「在吗」、别解释自己在等；只输出这一句，觉得这会儿不该说就输出 [SKIP]。'
+    : 'TA 之前问过你一句「' + said + '」，然后就没下文了。' +
+      '你现在可以先把那句答上（哪怕只说一半），或者问问 TA 到底什么意思。别装作没看见，也别长篇大论；只输出这一句，觉得没什么可说的就输出 [SKIP]。';
+  const ctx = {
+    nick, kind: 'private', history: v.history || [], summary: v.summary || '', facts: v.facts || [],
+    gapNote: v.gapNote || '', note: instruction, watchFollow: { kind: kindOf, said, idleMin }
+  };
+  let out = null;
+  try { out = await brain.think(ctx); } catch (e) {
+    log({ event: 'watch-brain-error', key, err: String((e && e.message) || e).slice(0, 160) });
+    return { ok: false, why: 'brain-error' };
+  }
+  const reply = out && (out.reply || '').trim();
+  if (!reply && !(out && out.stickerKey)) {
+    log({ event: 'watch-skip', key, why: 'model-skip', kind: kindOf });
+    if (!dry) watch.markFollowed(key, item, { why: 'model-skip' });
+    return { ok: false, why: 'model-skip' };
+  }
+  const d = {
+    key, rule: 'watch', nick,
+    target: { type: 'private', id: peer },
+    reply, stickerKey: (out && out.stickerKey) || '', replyAhead: false
+  };
+  let resp = null;
+  try { resp = await send(d); } catch (e) {
+    log({ event: 'watch-send-error', key, err: String((e && e.message) || e).slice(0, 160) });
+    return { ok: false, why: 'send-error' };
+  }
+  const okSent = !!(resp && (resp.status === 'ok' || resp.dry));
+  if (okSent && !dry) watch.markFollowed(key, item, { why: 'sent' });
+  log({ event: okSent ? 'watch-out' : 'watch-send-failed', key, kind: kindOf, idleMin, chars: reply.length, dry });
+  return { ok: okSent, dry, kind: kindOf, chars: reply.length };
+}
+function selfmodSettings() { return { ...selfmod.loadCfg(), ...((cfgNow().selfmod) || {}) }; }
+function selfwriteSettings() { return { ...selfwrite.loadCfg(), ...((cfgNow().selfwrite) || {}) }; }
+function autonomySettings() { return { ...autonomy.loadCfg(), ...((cfgNow().autonomy) || {}) }; }
 function forwardSettings() { return { ...forwardStore.DEFAULTS, ...((cfgNow().forward) || {}) }; }
 
 function quoteSettings() { return { ...quoteStore.DEFAULTS, ...((cfgNow().quote) || {}) }; }
@@ -775,6 +842,9 @@ const sendChains = new Map();
 const lastStickerSent = new Map();
 // 真忙时先搁着的消息（message_id → 记下时间），防止同一条被重复排期
 const busyDeferred = new Map();
+// brain 全挂时的重投（只重投一次，再失败就静默——用户不要「我在的，刚看到」这类模板）
+const retryDeferred = new Map();
+const REPLY_RETRY_MS = Number(process.env.AUTOREPLY_RETRY_MS) || 75000;
 // 上一轮用的是哪种「想」法：等对方回话后，用 TA 的反应回头修这一档的深度偏好
 const lastMode = new Map();
 
@@ -809,8 +879,15 @@ function send(d) {
 }
 
 async function sendOnce(d) {
-  const [dlo, dhi] = ((cfg && cfg.delayMs) || [300, 900]);
-  const wait = dlo + Math.random() * Math.max(0, dhi - dlo);
+  // 热聊模式：一旦聊起来了就是秒回，不额外拖时间（用户 2026-10-27 要求）
+  const hc = (cfg && cfg.hotChat) || {};
+  const [dlo, dhi] = d._hotChat && hc.fastDelayMs
+    ? hc.fastDelayMs
+    : ((cfg && cfg.delayMs) || [300, 900]);
+  // 自主权：模型可以用 [[慢点回]] / [[很快回]] 覆盖这一档（上限由 autonomy policy 钳）
+  const wait = Number.isFinite(d.delayOverrideMs)
+    ? Math.max(0, d.delayOverrideMs)
+    : dlo + Math.random() * Math.max(0, dhi - dlo);
   const h = humanizeSettings();
   const dryNow = process.env.AUTOREPLY_DRY === '1';
   const typing = h.typing !== false && d.target.type === 'private' && !dryNow;
@@ -831,6 +908,8 @@ async function sendOnce(d) {
   const typeMs = pacing ? pace.typingMs(d.reply || '') : 0;
   let okCount = 0;
   let parts = [d];
+  // 模型自己挑了语气（[[语气:温柔]]）就整轮沿用它，不让规则再替它决定
+  if (d.tone) parts.forEach((p) => { p._tone = d.tone; });
   try {
   // 第一阶段：先「看消息、想怎么说」——这段时间不亮输入提示（真人此刻只是看着屏幕）
   await new Promise(r => setTimeout(r, Number.isFinite(wait) ? wait : 2000));
@@ -885,10 +964,12 @@ async function sendOnce(d) {
       try {
         const V = require('./voice.js');
         const sig = piece._voiceSignals || {};
-        const pr = V.prosody.prosodyFor({
+        const modelTone = piece._tone || piece.tone || d.tone || null;
+        const pr = (modelTone && V.prosody.byTone(modelTone)) || V.prosody.prosodyFor({
           mood: sig.mood, pad: sig.pad, mode: sig.mode, echo: sig.echo, tie: sig.tie,
           hour: new Date().getHours()
         });
+        if (modelTone) log({ event: 'tone-choice', key: d.key, tone: pr.tone, want: modelTone, by: pr.by || 'model' });
         const vp = V.prosody.voiceFor({ tone: pr.tone, cfg: (cfg.voice || {}), random: Math.random }) || { voice: null, why: 'no-voice-pick' };
         const _vm = Number(cfg.voice && cfg.voice.maxChars);
         const v = V.synth(piece.reply, { maxChars: Number.isFinite(_vm) && _vm > 0 ? _vm : 0, prosody: pr, voice: vp.voice });
@@ -1237,11 +1318,29 @@ async function handle(evt, opts) {
   if (note) note += '（你确实看见了它，但别像解说员那样复述画面，就当自己收到这么个表情/图，自然接一句）';
   if (d.voices) note += '（语音也一样：别编造语音里说了什么，可以自然地说「你发语音啦，我这边没声儿」之类）';
   // 真忙就别秒回「我手上有事，晚点回你」——真人忙着的时候根本不回，等腾出手才看到消息。
+  // 热聊判定：正聊着（距上一次来回 < hotChat.windowMin 分钟且已经聊过 hotChat.minTurns 轮）＝秒回，
+  // 不排期、不「慢点回」、不加额外延迟。慢回只留给刚开场或对方明显在忙的时候。
+  const hotNow = (() => {
+    try {
+      const hc = { enabled: true, windowMin: 10, minTurns: 6, ...((cfgNow().hotChat) || {}) };
+      if (hc.enabled === false) return null;
+      const v = ctxStore.view(key);
+      const turns = (v.history || []).length;
+      const idle = Number(v.idleMin);
+      if (turns >= (Number(hc.minTurns) || 6) && Number.isFinite(idle) && idle <= (Number(hc.windowMin) || 10)) {
+        return { cfg: hc, idleMin: idle, turns };
+      }
+    } catch (e) { /* 忽略 */ }
+    return null;
+  })();
+  if (hotNow) { d._hotChat = true; log({ event: 'hot-chat', key, idleMin: hotNow.idleMin, turns: hotNow.turns }); }
+
   // 这里只做一件事：把这条消息往后放几分钟（日志 busy-defer），到点再走正常流程（模型照常想怎么回）。
   {
     const bz = busySettings();
     const dryNow = process.env.AUTOREPLY_DRY === '1';
-    if (bz.enabled !== false && !dryNow && !opts.fromDefer) {
+    if (hotNow) { /* 正聊着就别排期 */ }
+    else if (bz.enabled !== false && !dryNow && !opts.fromDefer) {
       let st = null;
       try { st = self.state(); } catch (e) { st = null; }
       const kind = st && st.kind;
@@ -1343,6 +1442,12 @@ async function handle(evt, opts) {
           ctx.bond = bits.bond;
           ctx.memories = bits.memories;
           d._mindBits = bits;
+          // 我自己刚说过的话也要在视野里（用户要求：回复时也看自己发过的消息）
+          try {
+            const full = (v && Array.isArray(v.history)) ? v.history : [];
+            const mine = full.filter((h) => h && h.from === 'me' && h.text).slice(-3).map((h) => ({ t: h.t, text: h.text }));
+            if (mine.length) { ctx.myRecent = mine; log({ event: 'my-recent', key, n: mine.length }); }
+          } catch (e) { /* 忽略 */ }
           if (bits.memories.length) log({ event: 'recall', key, n: bits.memories.length, mood: bits.mood, bond: bits.bond });
         } catch (e) {
           log({ event: 'mind-recall-error', key, err: String(e && e.message).slice(0, 200) });
@@ -1386,10 +1491,22 @@ async function handle(evt, opts) {
         d._style = style.styleOf(stt ? { rel: stt.rel, pad: stt.pad, echo: d._echo, tie: ties.styleHint(key) } : { rel: { intimacy: 0.32, warmth: 0.5, tension: 0 }, echo: d._echo, tie: ties.styleHint(key) });
         if (d._style && d._style.hint) ctx.style = d._style.hint;
         try { ctx.habits = style.habitHint(key); } catch (e) { /* ignore */ }
+        // 还有话头悬着（我问了 TA 没接）→ 顺口提一句，别硬提
+        try {
+          const wn = watch.noteFor(key, { history: (v && v.history) || [], now: Date.now(), cfg: watchSettings() });
+          if (wn) { ctx.note = (ctx.note ? ctx.note + ' ' : '') + wn; log({ event: 'watch-note', key }); }
+        } catch (e) { log({ event: 'watch-note-error', key, err: String((e && e.message) || e).slice(0, 120) }); }
+        // 模型自己写下过什么（心情/印象/想做的事）：读回来给它自己看
+        try {
+          const sn = selfwrite.selfNotes(key, { max: 3 });
+          if (sn && sn.length) { ctx.selfNotes = sn; log({ event: 'selfwrite-notes', key, n: sn.length, kinds: sn.map(x => x.label) }); }
+        } catch (e) { /* ignore */ }
         // 说话风格：从满穗语料统计出来的句长/句尾/口癖倾向（缺统计文件时静默跳过）
         try {
           const pn = persona.note(null, personaSettings());
           if (pn && pn.hint) { ctx.personaNote = pn.hint; d._persona = { samples: pn.samples, why: pn.why }; log({ event: 'persona', key, samples: pn.samples, name: pn.name }); }
+          // 它自己写的规矩：每轮都注入（条数少，开销可忽略）
+          try { if (selfmodSettings().enabled !== false) { const ch = selfmod.readCharter(); if (ch) { ctx.charterNote = ch; log({ event: 'charter', key, lines: selfmod.parseCharter(ch).length }); } } } catch (e) { log({ event: 'charter-error', key, error: e && e.message }); }
         } catch (e) { log({ event: 'persona-error', key, err: String(e && e.message).slice(0, 160) }); }
         if (d._style && d._style.enabled) log({ event: 'style', key, register: d._style.register, tease: d._style.allowTease, intimate: d._style.allowIntimate, soften: d._style.soften, echo: d._style.echoShift || undefined, max: d._style.maxChars });
       } catch (e) { log({ event: 'style-error', key, err: String(e && e.message).slice(0, 160) }); }
@@ -1431,8 +1548,68 @@ async function handle(evt, opts) {
         lastMode.set(key, { mode: md.mode, at: Date.now(), maxTokens: md.budget && md.budget.maxTokens });
       } catch (e) { log({ event: 'mode-error', key, err: String((e && e.message) || e).slice(0, 160) }); }
 
+      // 热聊：正聊着就秒回，别拖（用户 2026-10-27 要求）
+      if (d._hotChat) ctx.note = (ctx.note ? ctx.note + ' ' : '') + '你们正聊着，接着回就行——别拖、别排期、别说「等下再说」。';
+      // 你之前约好过一会儿要说的话：现在对方又发来消息，你可以当场决定还说不说
+      try {
+        const pend = autonomy.pendingPlans(key);
+        if (pend.length) {
+          const p0 = pend[pend.length - 1];
+          const mins = Math.max(0, Math.round((p0.at - Date.now()) / 60000));
+          ctx.note = (ctx.note ? ctx.note + ' ' : '') + `你之前打算 ${mins <= 0 ? '马上' : mins + ' 分钟后'}跟 TA 说：「${String(p0.text || '').slice(0, 80)}」。如果现在这几句已经让它没必要说了，就写 [[取消主动]]。`;
+          log({ event: 'plan-hint', key, id: p0.id, mins });
+        }
+      } catch (e) { log({ event: 'plan-hint-error', key, err: String((e && e.message) || e).slice(0, 120) }); }
       out = await brain.think(ctx);
       d._t0 = _t0; d._tThink = Date.now();
+      // 自我修改：模型在正文里写了 [[规则:…]] / [[自定:…]]，这里落盘（四道关：白名单/上下界/单次台阶/审计+可回滚）
+      try {
+        if (out && out.marks && out.marks.any) {
+          const smr = selfmod.applyMarks(out.marks, { key, uin: d.target && d.target.id, by: 'model', dry: dryRun, reason: String(d.text || '').slice(0, 60) });
+          log({ event: 'selfmod', key, rules: smr.rules.map(r => ({ key: r.key, ok: r.ok, why: r.why, to: r.to })), charter: smr.charter && smr.charter.applied, dry: dryRun });
+        }
+      } catch (e) { log({ event: 'selfmod-error', key, err: String((e && e.message) || e).slice(0, 160) }); }
+      // ===== 自主权（第 1 阶段：反应式自主）=====
+      // 模型提议、policy 审批：@我/问事/求助/催 → 不许不回；额度与冷却照旧
+      if (out.skip) {
+        let idleMin = null;
+        try { idleMin = ctxStore.view(key).idleMin; } catch (e) { /* ignore */ }
+        const sk = autonomy.decideSkip(key, d, { cfg: autonomySettings(), dry: process.env.AUTOREPLY_DRY === '1', idleMinutes: idleMin });
+        if (sk.ok) {
+          log({ event: 'autonomy-skip', key, text: String(d.text || '').slice(0, 40) }, '这次它选择先不接');
+          await mindAfterTurn(key, d, evt, out);
+          return;
+        }
+        log({ event: 'autonomy-skip-denied', key, why: sk.why });
+      }
+      if (out.cancelPlan) {
+        try {
+          const cp = autonomy.cancelPlans(key, { why: 'model-cancel', now: Date.now() });
+          log({ event: 'plan-cancel', key, n: cp.n }, `撤掉了 ${cp.n} 条还没发出去的主动消息`);
+        } catch (e) { log({ event: 'plan-cancel-error', key, err: String((e && e.message) || e).slice(0, 120) }); }
+      }
+      if (out.slow) {
+        if (d._hotChat) log({ event: 'autonomy-slow-denied', key, why: 'hot-chat' });   // 正聊着就不许拖
+        else {
+          const sl = autonomy.decideSlow(key, { cfg: autonomySettings(), dry: process.env.AUTOREPLY_DRY === '1' });
+          if (sl.ok) { d.delayOverrideMs = sl.ms; log({ event: 'autonomy-slow', key, ms: sl.ms }, `它想晚点回（${Math.round(sl.ms / 1000)} 秒）`); }
+          else log({ event: 'autonomy-slow-denied', key, why: sl.why });
+        }
+      } else if (out.fast) {
+        const fa = autonomy.decideFast({ key, cfg: autonomySettings(), dry: process.env.AUTOREPLY_DRY === '1' });
+        d.delayOverrideMs = fa.ms;
+        log({ event: 'autonomy-fast', key, ms: fa.ms });
+      }
+      if (out.quote) {
+        const hasQuote = Array.isArray(d.quoted) && d.quoted.length > 0;
+        const aq = autonomy.allowQuote(key, { cfg: autonomySettings(), dry: process.env.AUTOREPLY_DRY === '1', hasQuote });
+        if (aq.ok) {
+          try {
+            const q = require('./quote.js').pickForQuote(key, { topic: d.text, cfg: quoteSettings() });
+            if (q && q.seq) { d.quoteSeq = q.seq; d.quoteText = q.text; log({ event: 'autonomy-quote', key, seq: q.seq, why: q.why }, '它引了一句旧话'); }
+          } catch (e) { log({ event: 'autonomy-quote-error', key, err: String((e && e.message) || e).slice(0, 160) }); }
+        } else log({ event: 'autonomy-quote-denied', key, why: aq.why });
+      }
       if (!out.reply && !out.stickerKey) {
         log({ event: 'skip', reason: 'brain-skip', key: d.key, ms: out.ms, model: out.model }, `brain 认为不必回 ${d.key}`);
         await mindAfterTurn(key, d, evt, out); // 不回也照记：情感与痕迹都要落到状态层/痕迹层
@@ -1562,9 +1739,25 @@ async function handle(evt, opts) {
         log({ event: 'voice-skip', key: d.key, why: 'disabled' });
       }
     } catch (error) {
-      d.reply = d.fallbackReply;
-      d.rule = (d.rule || 'default') + '+fallback';
-      log({ event: 'brain-error', key: d.key, err: String(error && error.message).slice(0, 300) }, `brain 失败，用模板兜底 ${d.key}`);
+      log({ event: 'brain-error', key: d.key, err: String(error && error.message).slice(0, 300) }, `brain 失败 ${d.key}`);
+      const mid = evt && evt.message_id ? String(evt.message_id) : '';
+      const already = opts.retried === true || d._retried === true || (mid && retryDeferred.has(mid));
+      // 注意：dryRun 在 handle 后面才声明（TDZ），这里只能用环境变量判断
+      const isDryNow = process.env.AUTOREPLY_DRY === '1';
+      if (!isDryNow && !already && mid) {
+        retryDeferred.set(mid, Date.now());
+        setTimeout(() => {
+          retryDeferred.delete(mid);
+          try { seen.delete(evt.message_id); } catch (e) { /* 去重表是 handle 内的，删不到就算了 */ }
+          log({ event: 'brain-retry', key: d.key, mid }, '过一会儿再想一次');
+          handle(evt, { fromRetry: true, retried: true }).catch(e => log({ event: 'brain-retry-error', key: d.key, err: String(e && e.message).slice(0, 200) }));
+        }, REPLY_RETRY_MS).unref();
+        await mindAfterTurn(key, d, evt, null);
+        return;
+      }
+      log({ event: 'reply-skip', key: d.key, why: 'brain-failed' }, '想不出来就不发了');
+      await mindAfterTurn(key, d, evt, null);
+      return;
     }
   }
   if (!d.reply && !d.stickerSeg) { await mindAfterTurn(key, d, evt, out); return; }
@@ -1581,6 +1774,13 @@ async function handle(evt, opts) {
   let resp;
   try {
     resp = await send(d);
+    // 模型自己挑了在线状态（[[状态:emo中]]）就照它设；风控闸门在 presence.setByLabel 里
+    if (out && out.status && resp && resp.status === 'ok') {
+      try {
+        const presetR = await require('./presence.js').setByLabel(out.status, { dry: process.env.AUTOREPLY_DRY === '1' });
+        log({ event: 'presence-model', key: d.key, want: out.status, ok: !!(presetR && presetR.ok), why: (presetR && presetR.why) || '' });
+      } catch (e) { log({ event: 'presence-model-error', key: d.key, err: String((e && e.message) || e).slice(0, 160) }); }
+    }
   } finally {
     if (typingKey && !dryRun) typingPop(typingKey);
   }
@@ -1592,6 +1792,16 @@ async function handle(evt, opts) {
   if (resp && resp.status === 'ok' && !dryRun) afterSend(d);
   else if (dryRun) log({ event: 'promise-skip', key: d.key, reason: 'dry' });
   else log({ event: 'promise-skip', key: d.key, reason: 'send-failed', resp: resp && (resp.status + '/' + resp.okCount + 'of' + resp.parts) });
+  // 模型自己写的文件（关系 / 随手记）：发送后处理；dry 只审计不落盘
+  if (out && Array.isArray(out.writes) && out.writes.length) {
+    try {
+      const r = selfwrite.apply(out.writes, {
+        key, uin: (d.target && d.target.id) || null, kind: d.target && d.target.type,
+        text: d.text, dry: !!dryRun || !!(resp && resp.dry), log
+      });
+      if (r.applied.length || r.skipped.length || r.disabled) log({ event: 'selfwrite', key, applied: r.applied.map(x => x.kind + ':' + (x.type || x.text || '')), skipped: r.skipped, disabled: !!r.disabled });
+    } catch (e) { log({ event: 'selfwrite-error', key, err: String(e && e.message).slice(0, 160) }); }
+  }
   await mindAfterTurn(key, d, evt, out, resp);
 }
 
@@ -1645,9 +1855,66 @@ function connect() {
   ws.onerror = () => { try { ws.close(); } catch (e) { } };
 }
 
-module.exports = {
+/** 排期到点：先让模型重估（A→B→C），再决定发/改/推后/撤。不直接盲发。 */
+async function sendPlanned(plan, opts = {}) {
+  const now = opts.now || Date.now();
+  const key = String(plan.key || '');
+  const dryRun = process.env.AUTOREPLY_DRY === '1';
+  if (!key) { autonomy.markPlanSent(plan.id, { ok: false, why: 'no-key', now }); return { ok: false, why: 'no-key' }; }
+  const kind = key.startsWith('g:') ? 'group' : 'private';
+  const id = kind === 'group' ? key.split(':')[1] : key.replace(/^p:/, '');
+  const target = kind === 'group' ? { type: 'group', id } : { type: 'private', id };
+  const nick = opts.nick || (kind === 'group' ? '群里的人' : (ctxStore.view(key).history.filter((h) => h.from !== 'me').slice(-1)[0] || {}).speaker || '对方');
+  // 这期间对方又发来几条（用来判断这句话还该不该说）
+  let sinceMsgs = 0;
+  try {
+    const h = ctxStore.view(key).history || [];
+    sinceMsgs = h.filter((x) => x.from !== 'me' && Number(x.t) > Number(plan.createdAt || 0)).length;
+  } catch (e) { /* ignore */ }
+  const ctx = {
+    key, nick, kind, text: '', proactive: true,
+    replan: { text: plan.text || '', ageMin: (now - Number(plan.createdAt || now)) / 60000, sinceMsgs },
+    history: ctxStore.view(key).history
+  };
+  let out;
+  try { out = await brain.think(ctx); } catch (e) {
+    log({ event: 'plan-brain-error', key, err: String((e && e.message) || e).slice(0, 160) });
+    autonomy.markPlanSent(plan.id, { ok: false, why: 'brain-error', now });
+    return { ok: false, why: 'brain-error' };
+  }
+  if (out && out.plan) {                       // 模型认为该往后挪
+    const re = autonomy.schedulePlan(key, out.plan, { now });
+    autonomy.markPlanSent(plan.id, { ok: false, why: 'rescheduled', now });
+    log({ event: 'plan-rescheduled', key, id: plan.id, inMs: out.plan.inMs, again: re && re.id });
+    return { ok: false, why: 'rescheduled' };
+  }
+  if (!out || !out.reply || out.skip) {         // 话题过去了 / 模型判断不必说
+    autonomy.markPlanSent(plan.id, { ok: false, why: out && out.skip ? 'model-skip' : 'empty', now });
+    log({ event: 'plan-dropped', key, id: plan.id, why: out && out.skip ? 'model-skip' : 'empty' });
+    return { ok: false, why: 'dropped' };
+  }
+  const d = { key, rule: 'planned', target, nick, reply: out.reply, planId: plan.id };
+  let resp = null;
+  try { resp = await send(d); } catch (e) {
+    autonomy.markPlanSent(plan.id, { ok: false, why: 'send-error', now });
+    log({ event: 'plan-send-error', key, id: plan.id, err: String((e && e.message) || e).slice(0, 160) });
+    return { ok: false, why: 'send-error' };
+  }
+  const ok = resp && (resp.status === 'ok' || resp.dry);
+  autonomy.markPlanSent(plan.id, { ok: !!ok, why: ok ? '' : 'send-failed', now });
+  log({ event: 'plan-fired', key, id: plan.id, ok: !!ok, dry: !!dryRun, reply: String(out.reply).slice(0, 40) });
+  try { await mindAfterTurn(key, d, null, out, resp); } catch (e) { /* ignore */ }
+  return { ok: !!ok, reply: out.reply };
+}
+
+module.exports = { selfmodSettings,
+  autonomySettings,
+  selfwriteSettings,
   loadCfg, burstSettings, parseBurst, forwardSettings, modeSettings, personaSettings, murmurSettings, pushCtxTurn,
-  atOthers, lastMyLine, followNames, follow, nick, themSettings, timelineSettings, echoSettings, typingPush, typingPop, typingTargetOf, decide, inQuietHours, textOf, hasAtMe, handle, dispatch, mergeEvents, mergeable, mergeSettings, flushMerge, fetchQuote, saySettings, analyzeIncoming, buildMessage, send, sendBubble, splitReply, afterSend, mindAfterTurn, promiseSettings, humanizeSettings, lastStickerSent };
+  atOthers, lastMyLine, followNames, follow, nick, themSettings, timelineSettings, echoSettings, typingPush, typingPop, typingTargetOf, decide, inQuietHours, textOf, hasAtMe, handle, dispatch, mergeEvents, mergeable, mergeSettings, flushMerge, fetchQuote, saySettings, analyzeIncoming, buildMessage, send, sendBubble, splitReply, afterSend, mindAfterTurn, promiseSettings, humanizeSettings, lastStickerSent,
+  sendPlanned,
+  watchSettings, sendWatchFollowUp
+};
 
 if (require.main === module) {
   const mode = process.argv[2];
@@ -1741,7 +2008,7 @@ if (require.main === module) {
     return;
   }
   // 后台定时器：空闲巩固 / 想念调度 / 自进化 / 头像（各自可关，失败只记日志，绝不影响回复）
-  timers.startAll({ log, send, mindSettings, cfgNow, SELF_ID });
+  timers.startAll({ log, send, mindSettings, cfgNow, SELF_ID, watchSettings, sendWatchFollowUp });
   connect();
   setInterval(() => {
     const before = cfg && cfg.enabled;

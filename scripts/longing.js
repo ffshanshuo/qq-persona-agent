@@ -151,6 +151,12 @@ function nickOf(key) {
 function topicOf(key, cand = {}, now = Date.now()) {
   const cap = (t) => String(t || '').replace(/\s+/g, ' ').trim().slice(0, Number(cfg.topicChars) || 60);
   if (cand && cand.due && cand.due.text) return { kind: 'due', text: cap(cand.due.text) };
+  // 模型给自己排的「想做的事」：比「我最后一句」更像有由头地开口
+  try {
+    const w = require('./selfwrite.js').wantsFor(key, { max: 1, maxAgeDays: 14 })[0];
+    const wt = cap(w && w.text);
+    if (wt.length >= 4) return { kind: 'want', text: wt };
+  } catch (e) { /* 没有就没有 */ }
   try {
     const hist = context.view(key).history || [];
     for (let i = hist.length - 1; i >= 0; i--) {

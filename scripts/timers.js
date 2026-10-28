@@ -15,6 +15,8 @@ const ctxStore = require('./context.js');
 const brain = require('./brain.js');
 const risk = require('./risk.js');
 const presence = require('./presence.js');
+const autonomy = require('./autonomy.js');
+const watch = require('./watch.js');
 
 /** 空闲巩固：聊完就散场的时候也该「反刍」——定时看看有没有没整理完的会话 */
 function startSweep(env) {
@@ -127,15 +129,99 @@ function startPresence(env) {
   return { timer, first };
 }
 
+/** 排期到点：模型自己约的「过一会儿来找你」，到点交给 sendPlanned 重估后再说 */
+function startPlans(env) {
+  const tick = async () => {
+    let due = [];
+    try { due = autonomy.duePlans(); } catch (e) { env.log({ event: 'plans-error', err: String((e && e.message) || e).slice(0, 160) }); return; }
+    if (!due.length) return;
+    for (const plan of due) {
+      try {
+        const g = risk.gate('proactive');
+        if (!g.ok) { env.log({ event: 'plans-skip', id: plan.id, why: g.why }); continue; }
+        const r = await env.sendPlanned(plan);
+        env.log({ event: 'plans-run', id: plan.id, ok: !!(r && r.ok), why: (r && r.why) || '' });
+      } catch (e) {
+        env.log({ event: 'plans-run-error', id: plan.id, err: String((e && e.message) || e).slice(0, 160) });
+      }
+    }
+  };
+  const timer = setInterval(tick, 60 * 1000).unref();
+  const first = setTimeout(tick, 20 * 1000).unref();
+  return { timer, first };
+}
+
 /** 一次把四个都挂上；返回句柄，方便测试 clear 或断言「关掉的不会启动」。 */
+/** 反复盯着消息看：话头悬着（我问了没回 / TA 问了没下文）就自己追问一句 */
+function startWatch(env) {
+  const w0 = watch.cfgOf((env.watchSettings && env.watchSettings()) || {});
+  if (w0.enabled === false) return null;
+  const everyMin = Math.max(1, Number(w0.checkEveryMin) || 5);
+  let lastTick = 0;
+  return setInterval(async () => {
+    try {
+      const sessions = ctxStore.list().map(s => ({ key: s.key, idleMin: s.idleMin }));
+      const r = watch.scan({
+        sessions,
+        cfg: w0,
+        historyOf: (k) => { try { return ctxStore.view(k).history || []; } catch (e) { return []; } }
+      });
+      const nowMs = Date.now();
+      if (nowMs - lastTick > 3600e3) { lastTick = nowMs; env.log({ event: 'watch-tick', scanned: r.scanned || 0, cands: (r.list || []).length, everyMin }); }
+      if (r.skipped) { env.log({ event: 'watch-skip', why: r.skipped }); return; }
+      if (!r.list || !r.list.length) return;
+      for (const x of r.list) {
+        let o = null;
+        try { o = await env.sendWatchFollowUp(x.key, x.item); } catch (e) {
+          env.log({ event: 'watch-error', key: x.key, err: String((e && e.message) || e).slice(0, 160) });
+          continue;
+        }
+        env.log({ event: 'watch-check', key: x.key, kind: x.item.kind, idleMin: x.item.idleMin, ok: !!(o && o.ok), why: o && o.why },
+          o && o.ok ? '话头悬着，追了一句' : '看了，先不动');
+      }
+    } catch (e) {
+      env.log({ event: 'watch-error', err: String((e && e.message) || e).slice(0, 160) });
+    }
+  }, everyMin * 60000).unref();
+}
+
+/** 自我修改：定期读指标、自己提改动、开实验、观察窗口后留或回滚（selfmod.evolve） */
+function startSelfmod(env) {
+  const selfmod = require('./selfmod.js');
+  const s0 = { ...selfmod.loadCfg(), ...((env.cfgNow().selfmod) || {}) };
+  if (s0.enabled === false) return null;
+  const everyMin = Math.max(30, Number(s0.evolveEveryMin) || 90);
+  const tick = async () => {
+    try {
+      const r = await selfmod.evolve({});
+      if (!r.ok && r.why === 'too-soon') return;
+      if (r.evaluated && r.evaluated.length) env.log({ event: 'selfmod-eval', results: r.evaluated });
+      if ((r.opened || []).length) {
+        env.log({ event: 'selfmod-evolve', opened: r.opened }, '自进化：' + r.opened.length + ' 个实验（' + r.opened.map(function (o) { return o.key; }).join(', ') + '）');
+      } else {
+        env.log({ event: 'selfmod-check', proposals: (r.proposals || []).length, opened: 0 });
+      }
+    } catch (e) {
+      env.log({ event: 'selfmod-error', err: String((e && e.message) || e).slice(0, 200) });
+    }
+  };
+  const t = setInterval(tick, everyMin * 60000);
+  if (t.unref) t.unref();
+  setTimeout(tick, 120 * 1000).unref();
+  return t;
+}
+
 function startAll(env) {
   return {
     sweep: startSweep(env),
     longing: startLonging(env),
     evolve: startEvolve(env),
     avatar: startAvatar(env),
-    presence: startPresence(env)
+    presence: startPresence(env),
+    plans: startPlans(env),
+    watch: startWatch(env),
+    selfmod: startSelfmod(env)
   };
 }
 
-module.exports = { startAll, startSweep, startLonging, startEvolve, startAvatar, startPresence };
+module.exports = { startAll, startSweep, startLonging, startEvolve, startAvatar, startPresence, startPlans, startWatch, startSelfmod };

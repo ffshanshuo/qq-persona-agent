@@ -100,14 +100,16 @@ function spawnPython(script, args, logName) {
   const out = fs.openSync(path.join(ROOT, 'logs', logName), 'a');
   const env = { ...process.env };
   const bin = path.join(ROOT, 'vendor', 'bin');
-  env.PATH = bin + path.pathsep + (env.PATH || '');
+  const sys32 = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32');
+  // PATH 必须显式带上 System32：watchdog 可能是从 bash 里拉起的，PATH 里没有 cmd.exe 就 ENOENT
+  env.PATH = [bin, env.PATH || '', sys32].filter(Boolean).join(path.delimiter);
   env.HF_ENDPOINT = env.HF_ENDPOINT || 'https://hf-mirror.com';
   const p = spawn(RVC_PY, [script, ...args], { detached: true, stdio: ['ignore', out, out], cwd: ROOT, env });
   p.unref();
   return p;
 }
 
-function portOpen(port, host = '127.0.0.1', timeoutMs = 1200) {
+function portOpen(port, host = '127.0.0.1', timeoutMs = 5000) {
   return new Promise((resolve) => {
     const sock = net.connect({ host, port });
     const done = (v) => { try { sock.destroy(); } catch (e) { } resolve(v); };
@@ -160,9 +162,12 @@ async function ensureGsv() {
   for (const k of ['HTTPS_PROXY', 'HTTP_PROXY', 'https_proxy', 'http_proxy', 'ALL_PROXY', 'all_proxy']) delete env[k];
   // 优先走 start-gsv.cmd（权重组合的唯一来源）；脚本不存在才退回裸 python（退化为纯官方权重）
   const useLauncher = fs.existsSync(GSV_LAUNCHER);
+  const CMD = process.env.ComSpec || path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe');
   const p = useLauncher
-    ? spawn('cmd.exe', ['/c', GSV_LAUNCHER], { detached: true, stdio: ['ignore', out, out], cwd: ROOT, env })
+    ? spawn(CMD, ['/c', GSV_LAUNCHER], { detached: true, stdio: ['ignore', out, out], cwd: ROOT, env })
     : spawn(GSV_PY, [GSV_SERVER, '--host', '127.0.0.1', '--port', String(c.port)], { detached: true, stdio: ['ignore', out, out], cwd: ROOT, env });
+  // 关键：spawn 失败会 emit 'error'，不监听就是未捕获异常，直接把 watchdog 进程带走
+  p.on('error', (e) => log('[watchdog] 拉起 GPT-SoVITS 失败：' + (e && e.message)));
   p.unref();
   log('[watchdog] GPT-SoVITS 服务端不在，已拉起（端口 ' + c.port + (c.voice ? '，音色 ' + c.voice : '') + '，启动器 ' + (useLauncher ? 'start-gsv.cmd' : 'python') + '）');
 }

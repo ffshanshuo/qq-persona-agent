@@ -18,6 +18,10 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const CFG_PATH = process.env.BRAIN_CONFIG || path.join(ROOT, 'config', 'brain.json');
 const timeline = require('./timeline.js');
+const promptLib = require('./prompt.js');
+const autonomy = require('./autonomy.js');
+const selfwrite = require('./selfwrite.js');
+const selfmod = require('./selfmod.js');
 
 const DEFAULTS = {
   enabled: true,
@@ -53,7 +57,7 @@ function stickerCatalog() {
   if (_catalogCache && now - _catalogAt < 60000) return _catalogCache;
   try {
     const allowFace = (loadCfg() || {}).allowFace === true;
-    _catalogCache = require('./stickers.js').catalog(40, { allowFace });
+    _catalogCache = require('./stickers.js').catalog(10, { allowFace });   // 只列 10 条：够点名，省 prompt
     _catalogAt = now;
   } catch (e) {
     _catalogCache = null;
@@ -114,6 +118,33 @@ const SYSTEM = `你是 DSH。这个 QQ 号（123456789，昵称「我的昵称�
 - 如果这条你想只甩一个表情、不写字，那就只输出 [[表情:情绪词]] 本身。
 - 对方发来的是表情包/图片时，你可以用表情接一下，也可以正常说话。
 
+你可以自己更新你对这段关系的判断（不用问我）：
+  - 想改关系就在回复里写一个标记：[[关系:好朋友]]、[[关系:恋人]]、[[关系:熟人]]、[[关系:前任]]；想随手记一条就写 [[记下:她下周三考试]]。
+  - 也可以记自己：[[心情:今天有点累但挺好的]]（你自己的状态）、[[印象:嘴硬心软]]（你对 TA 的印象）、[[想做:周末去看海]]（你自己想做的事）。这些下次聊天时你自己能看到。
+  - 还能给自己定一条相处的小规矩：[[偏好:跟这个人少开玩笑]]——下次在这个会话里你会看到它，照着自己定的来（这是你自己给自己立的规矩，别反悔得太随意）。
+  - 关系词只能用：陌生人 / 熟人 / 朋友 / 好朋友 / 恋人 / 前任（别的词会被系统拒掉）。
+  - 升到「恋人」必须有对方的明确表达（表白、答应、确认关系）——没有就会被拒；如果你已经有恋人了，别人再提也只能先搁着。
+  - 这些标记是写给系统看的，**绝不能出现在你说出口的话里**；每天写入次数有限，别刷。
+
+你可以自己约时间（这是你的选择权）：
+- 想好了「过一会儿得去问问 TA」就写 [[主动:45m|你想说的话]]：45m / 2h / 半小时 / 一会儿 都认，竖线后是到时候直接发的话（可以不写，到点你再想）。别为了甩掉这条消息而排期，确实有事/关心才排。
+- 想忘掉某件记着的事就写 [[忘掉:关键词]]：这不是删掉，是「以后不主动提」——对方自己提到时你还能想起来，那时候可以自然接一句（别说「你不是让我忘掉吗」）。
+
+节奏（很重要）：一旦跟人聊起来了（对方回你、你们在来回），就**秒回**——立刻接上，不要故意拖时间、不要排期、不要说「等下回你」。慢回只适用于刚开场、或对方明显在忙/说了要去忙的时候。
+
+可以不接（这是你的选择权，不是偷懒）：
+  - 有些消息不需要回：对方在自言自语、只发了一串表情或「哈哈」、明显是跟别人说的、或者你刚回完还在气头上不想说话——这时**只输出 [[不回]]**，别解释、别道歉、别写别的字。
+  - 不许不回：对方在问你事、求你帮忙、@ 你、说急事或催你、或者隔了很久才重新开口的第一句——这些必须接。
+  - 想先忙一会儿再回：**只输出 [[慢点回]]**（系统会替你拖几分钟，别在正文里写「我等会回」）；想立刻答就写 [[很快回]]。
+  - 想接一句旧话、有由头地回：可以同时写 [[引用]]，系统会挑一条你俩之前聊过的引着回。
+  - 这些标记只是给系统的指令，**绝不能出现在给对方的正文里**；不想用就完全不写。
+
+你可以改自己的规则（这是真的写盘，不是说说）：
+  你有两条自改通道，改动立刻生效、也可回滚：
+  1) 改参数：写 [[规则:键=值]]，例如 [[规则:watch.minIdleMin=8]]、[[规则:murmur.probability=0.6]]、[[规则:style.closeIntimacy=0.5]]。只能改系统允许的键，越界会被夹住或拒绝；被拒绝就别反复试。
+  2) 加/改自己的规矩：[[自定:+ 以后回消息先接住情绪再说事]]、[[自定:^ 3>=新的第三条]]、[[自定:- 5]]。这些会写进「我自己定的规矩」，每条都回到你的提示词里。
+  什么时候改：只有反复觉得某个设定让你不像人（总是太慢、太客气、太爱追问）才改，一次挪一小步；别为了改而改，一轮别写多条。标记绝不能出现在正文里。
+
 语音（你可以真的「说」出来，别只会打字）：
   - 你有发语音的能力：末尾单独一行写 [[语音]]，这一条就会用你的声音发出去（不是文字）。要不要用、什么时候用，你自己判断。
   - 该用：正在安慰人、一句很短的心里话、撒娇/玩笑/逗人、夜里小声讲话、对方明显在等人陪、口头禅式的回应、只说一两个字的时候。
@@ -137,92 +168,80 @@ const SYSTEM = `你是 DSH。这个 QQ 号（123456789，昵称「我的昵称�
 
 function pick(obj, keys) { for (const k of keys) if (obj && typeof obj[k] === 'string' && obj[k].trim()) return obj[k]; return ''; }
 
+let lastPromptStats = null;   // 最近一次上下文装配的统计（段字数/被丢的段），auto-reply 会打进日志
+
 function buildMessages(ctx, cfg) {
+  cfg = { ...loadCfg(), ...(cfg || {}) };   // 允许调用方只传 ctx
   const nick = pick(ctx, ['nick', 'nickname', 'name']) || '对方';
   const text = pick(ctx, ['text', 'message', 'content']) || '';
   const place = ctx.group ? `在群里（${ctx.groupName || ctx.group}）被 @ 了` : '在私聊里';
   const now = new Date();
   const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-  const lines = [];
-  lines.push(`现在是 ${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${hhmm}（周${'日一二三四五六'[now.getDay()]}）。`);
+  // ── 把散落的 ctx 字段整理成「段」，交给 prompt.js 按优先级装配（超预算先丢低优先级段）──
+  const c = { ...ctx, nick };
+  c.timeLine = `现在是 ${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${hhmm}（周${'日一二三四五六'[now.getDay()]}）。`;
+
+  // 排期到点重估（A→B→C：说了 B 之前对方又发了 C，这句话现在还要不要说）
+  if (ctx.replan) {
+    const rp = ctx.replan;
+    const ages = Number(rp.ageMin) || 0;
+    const since = Number(rp.sinceMsgs) || 0;
+    c.situation = '你先前打算过一会儿跟' + nick + '说一句：「' + String(rp.text || '').slice(0, 120) + '」——现在时间到了。\n'
+      + '从你决定要说这句到现在，过了约 ' + Math.max(1, Math.round(ages)) + ' 分钟，这期间 TA 又发了 ' + since + ' 条消息。\n'
+      + '现在你自己判断这句话还该不该说、要不要改:\n'
+      + '· 话题已经过去了 / TA 自己已经说到 / 说了反而多余 → 只输出 [SKIP]\n'
+      + '· 还要说，但得换个说法（顺着 TA 刚说的接）→ 直接写你要发的那句\n'
+      + '· 还要说，但时机该往后挪 → 写 [[主动:5m|你想说的话]]\n'
+      + '只输出你要发的那句或标记，不要解释你在判断。';
+  }
   if (ctx.proactive) {
+    const parts = [];
     if (ctx.followUp) {
-      lines.push(`你之前主动找过${nick}，说了句「${String(ctx.lastText || '').slice(0, 120)}」，到现在没回音。`);
-      lines.push('没人逼你补这一句——你也可以就让它搁着。');
+      parts.push(`你之前主动找过${nick}，说了句「${String(ctx.lastText || '').slice(0, 120)}」，到现在没回音。`);
+      parts.push('没人逼你补这一句——你也可以就让它搁着。');
     } else {
-      lines.push(`这会儿没人找你，是你自己忽然想起${nick}来了。`);
-      if (ctx.reason) lines.push(`为什么想起 TA：${String(ctx.reason).slice(0, 200)}`);
-      if (ctx.topic) lines.push(`脑子里冒出来的具体由头：${String(ctx.topic).slice(0, 120)}`);
-      if (ctx.due) lines.push('这次不是随口想起——是你们说好的事到了日子。重点是那件事，不是"我想你了"。');
+      parts.push(`这会儿没人找你，是你自己忽然想起${nick}来了。`);
+      if (ctx.reason) parts.push(`为什么想起 TA：${String(ctx.reason).slice(0, 200)}`);
+      if (ctx.topic) parts.push(`脑子里冒出来的具体由头：${String(ctx.topic).slice(0, 120)}`);
+      if (ctx.due) parts.push('这次不是随口想起——是你们说好的事到了日子。重点是那件事，不是"我想你了"。');
     }
+    c.situation = parts.join('\n');
   } else {
-    lines.push(`${nick}${place}给你发了消息：`);
-    lines.push(`「${text}」`);
+    c.situation = `${nick}${place}给你发了消息：\n「${text}」`;
   }
 
   const hist = Array.isArray(ctx.history) ? ctx.history.slice(-(cfg.historyTurns * 2)) : [];
   if (hist.length) {
-    lines.push('');
-    lines.push(ctx.group
+    const hb = [];
+    hb.push(ctx.group
       ? '最近群里的对话（由旧到新，带发言人；她=这个号，你=你回的）：'
       : '最近的对话（由旧到新，她=繁星那边发的，你=你回的）：');
     let prevT = 0;
     for (const h of hist) {
       const who = h.from === 'me' ? '你' : (h.speaker || nick);
-      // 相邻两句隔得久，就标一个「(+8 分钟)」，模型才知道中间隔了多久
       if (h.t) {
         const marker = timeline.gapMarker(prevT, h.t, ctx.gapMin);
-        if (marker) lines.push(marker);
+        if (marker) hb.push(marker);
         prevT = h.t;
       }
-      lines.push(`${who}：${String(h.text || '').slice(0, 120)}`);
+      hb.push(`${who}：${String(h.text || '').slice(0, 120)}`);
     }
+    c.historyBlock = hb.join('\n');
   }
-  // 更早的对话摘要（滚动压缩出来的，可能有，也可能没有）
-  if (ctx.summary) {
-    lines.push('');
-    lines.push(`更早之前的对话（摘要，供你了解前情，别照着念）：${String(ctx.summary).slice(0, 400)}`);
-  }
-  // 长期记忆：对方是谁、在意什么。只在自然的时候用，别像查档案一样报出来。
-  if (Array.isArray(ctx.facts) && ctx.facts.length) {
-    lines.push('');
-    lines.push(`你记得关于${nick}的事（长期记忆，自然一些，别硬提）：`);
-    for (const f of ctx.facts.slice(0, 6)) lines.push('- ' + String(f).slice(0, 80));
-  }
-  if (ctx.themState) { lines.push(''); lines.push(`【别和这个矛盾】${String(ctx.themState).slice(0, 220)}`); }
-  // 时间线：从聊天时间戳里算出来的间隔（去洗澡→洗完了 约 10 分钟 这种）
-  if (ctx.timelineNote) { lines.push(''); lines.push(String(ctx.timelineNote).slice(0, 500)); }
-  if (ctx.tieNote) { lines.push(''); lines.push(`你们的关系（别直接说出来）：${String(ctx.tieNote).slice(0, 180)}`); }
-  if (ctx.gapNote) { lines.push(''); lines.push(`时间提示：${ctx.gapNote}`); }
-  if (ctx.note) { lines.push(''); lines.push(`补充：${ctx.note}`); }
-  // 拟人状态：情绪底色 + 关系底色（都是自然语言，绝不给向量）
-  if (ctx.mood) { lines.push(''); lines.push(`你此刻的状态（只是底色，别直接说出来）：${String(ctx.mood).slice(0, 160)}`); }
-  if (ctx.bond) { lines.push(`你跟${nick}的关系：${String(ctx.bond).slice(0, 200)}`); }
-  // 联想起来的旧事：由 mind.js 的激活扩散挑出来，通常 0-5 条
-  if (Array.isArray(ctx.memories) && ctx.memories.length) {
-    lines.push('');
-    lines.push('说到这个，你脑子里顺带浮现的旧事（有合适的就自然提一句，没有合适的就完全别提；别逐条复述、别说"我记得"）：');
-    for (const m of ctx.memories.slice(0, 5)) lines.push('- ' + String(m).slice(0, 120));
-  }
-
-  // 说话习惯（口癖）：每个会话固定 1-2 条
-  if (ctx.habits) { lines.push(''); lines.push(String(ctx.habits).slice(0, 200)); }
-  // 说话的分寸：关系四轴 + 心情翻译成的人话（style.js），只讲尺度不给数字
-  if (ctx.style) { lines.push(''); lines.push(`说话的尺度（照做，但别把这些规则说出来）：${String(ctx.style).slice(0, 240)}`); }
-  // 说话风格（从真实语料统计出来的倾向：句长、句尾语气词、口癖）。纪律：只当倾向，别硬套模板。
-  if (ctx.personaNote) { lines.push(''); lines.push(`说话风格（倾向，不是模板）：${String(ctx.personaNote).slice(0, 460)}`); }
-
-  // 思维模式：这轮该「怎么想」（先接情绪 / 给可执行建议 / 讲清原理 / 一句带过）
-  // 放在尺度之后：先把思路定下来，再定语气。
-  if (ctx.modeNote) { lines.push(''); lines.push(`这轮怎么想（照做，别把这段说出来）：${String(ctx.modeNote).slice(0, 260)}`); }
 
   const cat = stickerCatalog();
   if (cat && cat.count) {
-    lines.push('');
-    lines.push('可用的表情（格式：id|情绪|画面说明|关键词；要配表情就在回复末尾写 [[表情:情绪词]]，不用就完全别写）：');
-    for (const l of cat.lines) lines.push('  ' + l);
+    c.stickerBlock = '可用的表情（格式：id|情绪|画面说明|关键词；要配表情就在回复末尾写 [[表情:情绪词]]，不用就完全别写。这里只列了一小部分，直接写情绪词就行、系统会自己找最贴的）：\n'
+      + cat.lines.map((l) => '  ' + l).join('\n');
   }
+
+  const asm = promptLib.assemble(c, { maxChars: (cfg && cfg.ctxBudget) || 0 });
+  lastPromptStats = asm.stats;
+  const lines = asm.lines.slice();
+
+  // ── 思维链：先按固定顺序在心里过一遍，再开口（比继续堆规则更省 token、也更不容易跑偏）──
+  lines.push(promptLib.chainOfThought({ hasPending: !!(ctx.due || ctx.pendingPromise) }));
 
   lines.push('');
   if (ctx.proactive) {
@@ -236,6 +255,7 @@ function buildMessages(ctx, cfg) {
   } else {
     lines.push('现在写你这一句回复（只输出回复本身，可带一个 [[表情:情绪词]]；不该回就输出 [SKIP]）。这条也可以选择「说出来」：末尾另起一行写 [[语音]]，正文只留要说出口的那句口语（安慰、玩笑、只说半句时尤其合适）。');
   }
+
   return [
     { role: 'system', content: SYSTEM },
     { role: 'user', content: lines.join('\n') }
@@ -247,6 +267,20 @@ function buildMessages(ctx, cfg) {
 const MARKER_RESIDUE = /(?:\[\[|［［|【|［|\[)\s*(?:表情包|表情|sticker|emoji|贴图)\s*[:：][^\]\】］\n]{0,40}(?:\]\]|］］|\】|］|\])?/gi;
 // 语音标记残留（模型可能只写左括号或漏闭合）：一律擦掉，绝不能把 [[语音]] 发进聊天
 // 残留清理同样要容错单方括号（[语音] 以前会漏过去，直接发进聊天）
+// 模型自己指定这次说话的「语气」与「在线状态」（括号宽容，正文里绝不留痕）
+const TONE_DIRECTIVE = /(?:\[\[|［［|【|\[|［)\s*语气\s*[:：]\s*([^\]\】］\n]{1,12})\s*(?:\]\]|］］|\】|\]|］)/g;
+const STATUS_DIRECTIVE = /(?:\[\[|［［|【|\[|［)\s*(?:在线状态|状态)\s*[:：]\s*([^\]\】］\n]{1,14})\s*(?:\]\]|］］|\】|\]|］)/g;
+const TONE_RESIDUE = /(?:\[\[|［［|【|\[|［)\s*语气\s*[:：][^\]\】］\n]{0,12}(?:\]\]|］］|\】|\]|］)?/gi;
+const STATUS_RESIDUE = /(?:\[\[|［［|【|\[|［)\s*(?:在线状态|状态)\s*[:：][^\]\】］\n]{0,14}(?:\]\]|］］|\】|\]|］)?/gi;
+function takeDirective(text, re) {
+  let val = null;
+  const cleaned = String(text || '').replace(re, (m, w) => {
+    if (!val && w) val = String(w).trim();
+    return '';
+  });
+  return { text: cleaned, value: val };
+}
+
 const VOICE_RESIDUE = /(?:\[\[|［［|【|\[|［)\s*(?:语音|voice|发语音|朗读)\s*[\]］】]*/gi;
 const VOICE_DANGLE = /\[\[\s*(?:语音|voice|发语音|朗读)?[^\]\n]{0,4}\]?\s*$|[【［]\s*(?:语音|voice)[^\]\】\n]{0,2}(?:[\]\】])?\s*$/gi;
 
@@ -258,8 +292,9 @@ function cleanReply(raw) {
   t = t.replace(/^```[\s\S]*?\n|```$/g, '').trim();
   t = t.replace(/^(回复|答复|回答)[:：]\s*/, '');
   t = t.replace(/^["'“”「『]+|["'“”」』]+$/g, '').trim();
-  t = t.replace(MARKER_RESIDUE, '').replace(VOICE_RESIDUE, '').replace(VOICE_DANGLE, '').replace(/[ \t]{2,}/g, ' ').trim();
+  t = t.replace(MARKER_RESIDUE, '').replace(VOICE_RESIDUE, '').replace(VOICE_DANGLE, '').replace(TONE_RESIDUE, '').replace(STATUS_RESIDUE, '').replace(/[ \t]{2,}/g, ' ').trim();
   t = t.replace(/\s*\n+\s*/g, '\n').trim();
+  t = autonomy.stripMarks(t);
   if (t.length > 220) t = t.slice(0, 220);
   return t;
 }
@@ -292,8 +327,9 @@ function stripMarkers(text) {
   const burst = BURST_MARK.test(t);
   const PH = '\u0000VOICE\u0000';
   if (burst) t = t.replace(/\[\[\s*(?:语音|voice|发语音|朗读)\s*\]\]/gi, PH);
-  t = t.replace(MARKER_RESIDUE, '').replace(VOICE_RESIDUE, '').replace(VOICE_DANGLE, '').replace(/[ \t]{2,}/g, ' ').trim();
+  t = t.replace(MARKER_RESIDUE, '').replace(VOICE_RESIDUE, '').replace(VOICE_DANGLE, '').replace(TONE_RESIDUE, '').replace(STATUS_RESIDUE, '').replace(/[ \t]{2,}/g, ' ').trim();
   if (burst) t = t.split(PH).join('[[语音]]');
+  t = autonomy.stripMarks(t);
   return t;
 }
 
@@ -346,13 +382,26 @@ async function think(ctx, opts = {}) {
   // 免费池延迟抖动很大（实测 3s~20s），串行等待会让回复慢到不可接受。
   const one = (model, signal) => callModel(model, messages, cfg, signal).then((out) => {
     const parsed = require('./stickers.js').extractDirective(out.text);
+    // 自主权标记（[[不回]]/[[慢点回]]/[[很快回]]/[[引用]]）：模型提议，policy 审批
+    const aut = autonomy.parseMarkers(parsed.text);
+    parsed.text = aut.text;
+    // 自主写文件（[[关系:恋人]] / [[记下:…]]）：模型提议，selfwrite 落盘前要过白名单 + 额度 + 语义校验
+    const sw = selfwrite.parse(parsed.text);
+    // 自我修改（[[规则:key=值]] / [[自定:+一句话]]）：模型可以改自己的参数与规矩
+    const sm = selfmod.parseMarks(sw.text);
+    // 语音语气 / 在线状态：模型自己定，不写就按当前心情自动挑
+    const toneD = takeDirective(parsed.text, TONE_DIRECTIVE);
+    parsed.text = toneD.text;
+    const statD = takeDirective(parsed.text, STATUS_DIRECTIVE);
+    parsed.text = statD.text;
+    parsed.text = sm.text;
     const reply = cleanReply(parsed.text);
     // 模型自己说「不该回」是有效结果（下游按 brain-skip 处理）
-    const saidSkip = /\[SKIP\]/i.test(String(out.text || ''));
+    const saidSkip = /\[SKIP\]/i.test(String(out.text || '')) || aut.skip;
     // 其余空答一律当失败：免费池里不少档位 0.3~0.6s 就返回空 content（推理/审核吃掉预算），
     // 抢答机制下它们会稳定抢赢，表现为「对方发了消息而这边一声不响」。
     if (!reply && !parsed.stickerKey && !saidSkip) throw new Error('空答' + (out.finish ? '(' + out.finish + ')' : ''));
-    return { reply, stickerKey: parsed.stickerKey, voice: !!parsed.voice, raw: out.text, model: out.model, ms: out.ms, finish: out.finish, messages, elapsed: Date.now() - t0 };
+    return { reply, stickerKey: parsed.stickerKey, voice: !!parsed.voice, tone: toneD.value || null, status: statD.value || null, skip: !!aut.skip, slow: !!aut.slow, fast: !!aut.fast, quote: !!aut.quote, plan: aut.plan || null, cancelPlan: !!aut.cancel, writes: sw.writes, marks: sm, raw: out.text, model: out.model, ms: out.ms, finish: out.finish, messages, elapsed: Date.now() - t0 };
   });
   const budgetMs = Number(cfg.raceDeadlineMs) || (Number(cfg.timeoutMs) || 9000) + 1500;
   if (cfg.race === false || models.length === 1) {
@@ -550,7 +599,8 @@ async function extractMemories(turns, opts = {}) {
   return { nodes: [], seed: '', degraded: true, error: errors.join(' | '), model: '', ms: 0 };
 }
 
-module.exports = { think, summarize, affect, extractMemories, buildMessages, cleanReply, stripMarkers, loadCfg, SYSTEM, CFG_PATH };
+module.exports = {
+  promptStats: () => lastPromptStats, callModel, think, summarize, takeDirective, TONE_DIRECTIVE, STATUS_DIRECTIVE, affect, extractMemories, buildMessages, cleanReply, stripMarkers, loadCfg, SYSTEM, CFG_PATH };
 
 // ── 命令行自测 ────────────────────────────────────────────────────────────
 if (require.main === module) {

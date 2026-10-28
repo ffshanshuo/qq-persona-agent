@@ -408,7 +408,52 @@ function main() {
 }
 if (require.main === module) main();
 
+/**
+ * 直接写关系状态（给「模型自主写文件」用，也给人手修复用）。
+ * 与 observe() 的区别：observe 靠意图正则推进，这里由调用方给结论，但仍守三条：
+ *   ① 恋人全局唯一（被占则返回 conflict，不静默换人）；
+ *   ② 升到恋人必须「对方有明确表达」——text 命中 RE_ACCEPT/RE_PROPOSE，或 force:true（人工/授权）；
+ *   ③ 每次改动都进 history（谁改的、为什么、从什么变成什么），可回滚。
+ * @returns {{ok:boolean, why:string, from?:string, to?:string, t?:object}}
+ */
+function setType(key, type, opts = {}) {
+  const o = { ...loadCfg(), ...(opts.cfg || {}) };
+  const now = opts.now || Date.now();
+  const to = String(type || "").trim();
+  const all = TYPES.concat(["ex"]);
+  if (!all.includes(to)) return { ok: false, why: "bad-type" };
+  const t = load(key, opts.uin);
+  const from = t.type;
+  if (from === to && !opts.force) return { ok: false, why: "same-type" };
+  if (to === "lover") {
+    const evText = String(opts.text || "");
+    const evidence = opts.force === true || RE_PROPOSE.some((re) => re.test(evText)) || RE_ACCEPT.some((re) => re.test(evText));
+    if (!evidence) return { ok: false, why: "need-counterpart-evidence" };
+    const g = loadGlobal();
+    if (g.lover && g.lover.key && g.lover.key !== key) return { ok: false, why: "lover-taken", heldBy: g.lover.key };
+    g.lover = { key, uin: t.uin, since: now };
+    saveGlobal(g);
+    t.phase = "";
+    t.coolingSince = null;
+    if (from === "ex") t.reunions = (Number(t.reunions) || 0) + 1;
+  }
+  if (from === "lover" && to !== "lover") {
+    const g = loadGlobal();
+    if (g.lover && g.lover.key === key) { g.lover = null; saveGlobal(g); }
+    if (to === "ex") t.brokenAt = now;
+  }
+  if (to === "ex") t.phase = "";
+  t.type = to;
+  t.since = now;
+  t.updatedAt = now;
+  t.history.push({ at: now, from, to, why: String(opts.reason || "model-write").slice(0, 80), by: opts.by || "model" });
+  if (t.history.length > o.keepHistory) t.history = t.history.slice(-o.keepHistory);
+  save(t);
+  return { ok: true, why: "ok", from, to, t };
+}
+
 module.exports = {
+  setType,
   DEFAULTS, TYPES, LABELS, RANK, RE_PROPOSE, RE_ACCEPT, RE_BREAK, RE_REUNION,
   loadCfg, configure, options, __setOptions, CFG_PATH, dirOf, slugOf, fileOf, globalFile,
   blank, load, save, loadGlobal, saveGlobal, tierFromRel, detect, canBeLover,

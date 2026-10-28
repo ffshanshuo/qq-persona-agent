@@ -9,6 +9,33 @@
 
 ---
 
+## 这是什么 / 不是什么
+
+**是**：一套「怎么把一个 QQ 号做成有人格的助手」的**参考实现 + 方法论**。每层只做一件事、能单独测试、也能单独关掉；你可以只用其中几层。
+**不是**：一键安装包、托管服务、开箱即用的产品。它假设你愿意读日志、改配置、自己准备账号与模型通道。
+
+仓库**不包含**：任何音色模型与语音语料、任何 API key/token、任何聊天记录、表情包图片（只留空索引与抓取机制）、以及任何人的私人数据。
+
+你需要自己准备：
+
+1. 一个 QQ 号（**建议小号**）+ 已登录的 QQ NT 客户端 + [NapCatQQ](https://github.com/NapNeko/NapCatQQ)
+2. 一个 OpenAI 兼容的模型出口（云 API / 自建网关 / 本地 llama.cpp 都行）
+3. 可选：Python 3.10 与 ffmpeg，用来发语音、换音色或克隆音色
+
+## 文档导航
+
+| 文档 | 内容 |
+| --- | --- |
+| [docs/SETUP.md](docs/SETUP.md) | 从零搭建：环境依赖、NapCat、首次 dry 演练、上线检查清单 |
+| [docs/MODEL.md](docs/MODEL.md) | 模型出口怎么接：三种 provider、key 管理、失败与降级、省钱旋钮 |
+| [docs/VOICE.md](docs/VOICE.md) | 语音三条路线（edge-tts / RVC / GPT-SoVITS）+ **自己训音色的完整流程**与版权红线 |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | 症状 → 原因 → 处理（通道、风控、模型、语音、路径编码、进程端口、自检假失败） |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 从代码自动生成的层↔文件↔依赖图（`node scripts/arch.js` 可重生成） |
+| [docs/RISK-AND-COMPLIANCE.md](docs/RISK-AND-COMPLIANCE.md) | 第三方客户端的真实风控事件与合规边界 |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | 已完成 / 待做 / 明确不做的 |
+
+---
+
 ## 这个项目想解决什么
 
 大多数「QQ 机器人」止步于**关键词回复**或**把消息甩给大模型**。结果对方一眼就能看出不对：它记不住三天前说过的事、分不清跟你熟不熟、永远秒回、表情包永远是那几个、吵架了还能乐呵呵、连你刚说「去眯一会儿」它都接不住。

@@ -21,8 +21,10 @@ process.env.QQFOLLOW_DIR = L('follow-longingplus-test');
 process.env.QQNICK_DIR = L('nick-longingplus-test');
 process.env.QQQUOTE_DIR = L('quotes-longingplus-test');
 process.env.QQTHEM_DIR = L('them-longingplus-test');
+process.env.QQSELFWRITE_DIR = L('selfwrite-longingplus-test');
+process.env.QQSELFWRITE_LOG = L('selfwrite-longingplus-test.jsonl');
 process.env.AUTOREPLY_STATE = __dirname + '/../logs/autoreply-state-longing-plus-' + process.pid + '.json';
-for (const d of [process.env.QQMIND_DIR, process.env.QQCTX_DIR, process.env.QQLONGING_DIR, process.env.QQPROMISE_DIR, process.env.QQBOND_DIR, process.env.QQTRACE_DIR]) {
+for (const d of [process.env.QQMIND_DIR, process.env.QQCTX_DIR, process.env.QQLONGING_DIR, process.env.QQPROMISE_DIR, process.env.QQBOND_DIR, process.env.QQTRACE_DIR, process.env.QQSELFWRITE_DIR]) {
   fs.rmSync(d, { recursive: true, force: true });
 }
 
@@ -70,6 +72,10 @@ ok('① 有约好的事 → 用它当由头', t1 && t1.kind === 'due' && t1.text
 const t2 = longing.topicOf('p:2001', {}, NOW);
 ok('① 没约好就用「我上次说的那句」', t2 && t2.kind === 'mine-last' && t2.text.includes('爬山'), t2);
 ok('① 由头不会无限长', (t2.text || '').length <= 60, t2.text);
+// 模型自己排的「想做的事」优先于「我上次说的那句」（它是更明确的由头）
+require('./selfwrite.js').apply([{ kind: 'want', value: '周末想去看海' }], { key: 'p:2001', uin: '2001' });
+const t3 = longing.topicOf('p:2001', {}, NOW);
+ok('① 想做的事优先当我开口的由头', t3 && t3.kind === 'want' && t3.text.includes('看海'), t3);
 
 // ── ② 关系僵的时候不主动寒暄 ───────────────────────────────────
 seed('p:2002', { nick: '闹掰的', tension: 0.7, idleHours: 20 });

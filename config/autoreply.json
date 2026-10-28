@@ -34,52 +34,12 @@
   ],
   "rules": [
     {
-      "id": "who-are-you",
-      "match": "(你是|是不是)(AI|ai|机器人|人工|自动回复)|机器人吗|真人吗",
-      "reply": "我是 DSH，这个号我在用。"
-    },
-    {
       "id": "safety",
       "match": "借钱|转账|汇款|验证码|密码|红包|付款|扫码|中奖|账号冻结|兼职|代付",
       "reply": "这种事我不碰，别发我。真人之间自己去说。"
-    },
-    {
-      "id": "at-me",
-      "match": "^在吗|在不在|在么|在嘛|有人吗|在\\?",
-      "reply": "在，怎么了？"
-    },
-    {
-      "id": "morning",
-      "match": "早安|早上好|早啊|早上好呀",
-      "reply": "早～"
-    },
-    {
-      "id": "night",
-      "match": "晚安|睡了|去睡|先睡",
-      "reply": "晚安，我先睡啦。"
-    },
-    {
-      "id": "thanks",
-      "match": "谢谢|感谢|多谢|谢啦|thx|thanks",
-      "reply": "不客气～"
-    },
-    {
-      "id": "laugh",
-      "match": "^哈{2,}|2333|哈哈哈",
-      "reply": "哈哈，行。"
-    },
-    {
-      "id": "birthday",
-      "match": "生日快乐",
-      "reply": "谢谢！心意收到了～"
-    },
-    {
-      "id": "ok",
-      "match": "^(收到|好的|ok|OK|好嘞|嗯嗯)$",
-      "reply": "好～"
     }
   ],
-  "defaultReply": "在的，刚看到。",
+  "defaultReply": "",
   "llm": {
     "enabled": true,
     "_note": "true=让 brain.js 现想一句；false=退回 rules 模板"
@@ -93,12 +53,13 @@
     "autoFetch": true
   },
   "murmur": {
-    "enabled": true,
+    "enabled": false,
     "probability": 0.45,
     "minGapMin": 20,
     "perHour": 2,
     "perDay": 12,
-    "_note": "碎话层：对方只发「嗯/哦/？/哈哈/好的」这种没信息量的话时，偶尔回一句两三字的反应（不过模型、省 token）。概率与频次依据见 README「碎话层」。只能私下或群里点名时用。"
+    "_note": "碎话层：对方只发「嗯/哦/？/哈哈/好的」这种没信息量的话时，偶尔回一句两三字的反应（不过模型、省 token）。概率与频次依据见 README「碎话层」。只能私下或群里点名时用。",
+    "_autonomyNote": "2026-10-27 用户要求少干预模型自主性：碎话层默认关（原来「嗯」「哦」这类会被规则直接回掉，模型根本没机会说话）。想恢复就把 enabled 改 true。"
   },
   "voice": {
     "enabled": true,
@@ -155,12 +116,11 @@
   },
   "say": {
     "enabled": true,
-    "emojiMax": 2,
-    "_note": "人话自检：发送前扫中英混杂/助手口气/列清单/复述画面，能清的就地清，清不掉的让模型重写一次",
-    "retryCodes": [
-      "assistant",
-      "meta"
-    ]
+    "emojiMax": 0,
+    "_note": "2026-10-27 少干预：只做机械清理（摘掉混进来的英文残字），不再拍平清单 / 不再截断表情数 / 不再因助手腔强制重写。要恢复就把 emojiMax 改正数、keepList:false、retryCodes 填回 code。",
+    "retryCodes": [],
+    "_autonomyNote": "2026-10-27：不再因为「助手腔/元信息/列清单/书面腔」强制重写一遍，只做机械清理（中英混杂、多余表情）。要恢复强制重写把 code 写回 retryCodes。",
+    "keepList": true
   },
   "quote": {
     "enabled": true,
@@ -220,6 +180,37 @@
       9
     ],
     "_note": "真忙时不秒回借口：先搁 2–9 分钟再回（2026-10-26 用户要求：正常人是有空看到了才回，不该秒回「我手上有事，晚点回你」）"
+  },
+  "autonomy": {
+    "enabled": true,
+    "slowMs": [
+      180000,
+      900000
+    ],
+    "fastMs": [
+      200,
+      900
+    ],
+    "_note": "自主权层总开关与慢回/快回区间；额度与红线在 config/autonomy.json（第 1 阶段：反应式自主）"
+  },
+  "selfwrite": {
+    "enabled": true,
+    "_note": "模型自主写文件（关系 / 记下）；细则与额度在 config/selfwrite.json"
+  },
+  "_cannedNote": "2026-10-27 用户要求「删掉『在的，刚看到』这种固定回复」：defaultReply 置空、寒暄模板（who-are-you/at-me/morning/night/thanks/laugh/birthday/ok）全删，只留 safety 作涉钱红线。模型不可用时不再兜模板——延迟重投一次，仍失败就静默（日志 brain-error + reply-skip）。",
+  "hotChat": {
+    "enabled": true,
+    "windowMin": 10,
+    "minTurns": 6,
+    "fastDelayMs": [
+      150,
+      450
+    ],
+    "_note": "一旦聊起来就是秒回：距上一次来回 < windowMin 分钟且聊过 minTurns 轮时，不排期、不许慢回、延迟压到 fastDelayMs（用户 2026-10-27 要求）"
+  },
+  "watch": {
+    "enabled": true,
+    "_note": "反复盯着消息看（悬着的话头自己追问）；细参数在 config/watch.json"
   },
   "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
 }

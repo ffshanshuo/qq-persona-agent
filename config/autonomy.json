@@ -1,0 +1,35 @@
+{
+  "enabled": true,
+  "daily": {
+    "skip": 999,
+    "slow": 999,
+    "quote": 999,
+    "_note": "每天全局额度：[[不回]] / [[慢点回]] / [[引用]] 各 999 次 = 实际不设限（0 的语义是「关掉那一档」，所以这里用大数表示无限）。"
+  },
+  "perContact": {
+    "skipPerDay": 999,
+    "skipGapMin": 0,
+    "slowPerDay": 999,
+    "_note": "同一个人也不再限量：一天可以跳很多次、两次之间不强制间隔（跳不跳由模型自己判断）。"
+  },
+  "slowMs": [
+    180000,
+    900000
+  ],
+  "fastMs": [
+    200,
+    900
+  ],
+  "urgentRe": "急|在吗|在不在|电话|马上|现在就|救命|快回|赶紧|几点|什么时候|在哪|怎么样了",
+  "requestRe": "帮我|帮忙|能不能|可以吗|可不可以|求你|拜托|教我|给我|发我|推荐|怎么办|咋办|要不要|该不该|有没有",
+  "minGapForSkipHours": 0,
+  "keepDecisions": 200,
+  "_note": "自主权层（第 1 阶段：反应式自主）。模型可以提议「这次不回 / 慢点回 / 很快回 / 引用一句旧话」，由这一层审批。",
+  "_current": "2026-10-27 用户要求「闸门、追问不设限制，给回复 AI 自主权限」→ 额度清零（999=无限）、硬拦（blockDirect/blockUrgent/blockRequest/blockLongGap/noDoubleSkip）全关、minGapForSkipHours 0。剩下只有 risk.js 的风控闸门与 SYSTEM 里的涉钱/身份红线。",
+  "_slow": "slowMs 是 [[慢点回]] 的区间（3~15 分钟，policy 会钳住）；fastMs 是 [[很快回]] 的延迟，也要像人（不是 0）。",
+  "_why": "给模型决定权，它只提议；但账号安全（风控冷却）与涉钱/验证码/冒认身份这类红线不由它决定。",
+  "_audit": "每次决定都写 logs/autonomy.jsonl（含 dry 标记），当天计数在 logs/autonomy/state.json，跨天自动归零；面板「自主权」卡片能看到今天它自己决定了几件事。",
+  "preset": "max",
+  "_presetNote": "balanced=问事/求助/@我/催/久别第一句不许不回且有限额；max=这些硬拦与额度全关，回不回由模型自己判断（风控与涉钱红线仍在 risk.js 与 SYSTEM）",
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
+}

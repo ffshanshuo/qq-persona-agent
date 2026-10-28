@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "checkEveryMin": 2,
+  "minIdleMin": 7.813,
+  "maxIdleMin": 0,
+  "perKeyCooldownMin": 0,
+  "dailyMax": 0,
+  "maxPerScan": 5,
+  "maxTriesPerItem": 0,
+  "allowGroups": false,
+  "quietHours": [],
+  "_note": "反复盯着消息看：话头悬着（我问了 TA 没回 / TA 问了没下文）时，隔一会儿自己追问一句。",
+  "_gates": "0 = 不限。够不够格追问交给模型自己判断（它可以 [SKIP]），代码只留两道底线：minIdleMin（别刚问完就催）与「这条消息本身是不是个话头」。",
+  "_current": "2026-10-27 用户要求「闸门、追问不设限制，给回复 AI 自主权限」→ maxIdleMin / perKeyCooldownMin / dailyMax / maxTriesPerItem 全设 0（不限），maxPerScan 5，每 2 分钟看一次，悬着 5 分钟就可以动。",
+  "_note2": "真正开口仍要过 risk.gate(proactive)（风控冷却期会拦，这是账号安全红线，不属于「聊天自由度」）。群里默认不追：把 allowGroups 改 true 才追（群里话头太多，容易刷屏）。",
+  "_tries": "maxTriesPerItem 从 1 改成 0 = 同一条话头可以隔一会儿再追（模型每次自己判断还该不该提、要不要换个说法）；不想要重复追问就改回 1。",
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
+}

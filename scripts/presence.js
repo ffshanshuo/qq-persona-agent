@@ -320,6 +320,38 @@ async function setById(id, opts = {}) {
   return { ok: true, to: st.current };
 }
 
+// 模型自己挑状态（[[状态:emo中]] / [[状态:恋爱中]] / [[状态:隐身]] …）：只过风控与暂停闸门
+const STATUS_WORDS = {
+  在线: 'online', 'Q我吧': 'qme', 离开: 'away', 忙碌: 'busy', 勿扰: 'dnd', 请勿打扰: 'dnd', 隐身: 'invisible',
+  恋爱中: 'inLove', 元气: 'energetic', 元气满满: 'energetic', 嗨: 'flying', 嗨到飞起: 'flying',
+  emo: 'emo', 'emo中': 'emo', 一言难尽: 'complicated', 想静静: 'quiet', 安静: 'quiet', 我想开了: 'enlightened',
+  无聊: 'bored', 学习中: 'studying', 学习: 'studying', 搬砖: 'working', 搬砖中: 'working', 肝作业: 'homework',
+  摸鱼: 'slacking', 摸鱼中: 'slacking', 熬夜: 'nightOwl', 熬夜中: 'nightOwl', 睡觉: 'sleeping', 睡觉中: 'sleeping',
+  追剧: 'bingeWatching', 追剧中: 'bingeWatching', 听歌: 'listeningMusic', '听歌中': 'listeningMusic', 打游戏: 'gaming'
+};
+function statusOfWord(w) {
+  const k = String(w || '').trim();
+  if (!k) return null;
+  if (STATUS_WORDS[k]) return STATUS_WORDS[k];
+  if (MOODS[k] || BASE[k]) return k;
+  return null;
+}
+/** 模型点名的状态：不套「3 小时 / 每天 4 次」那套自动节流（那是给自动挑状态用的），但风控与暂停照旧 */
+async function setByLabel(label, opts = {}) {
+  const id = statusOfWord(label);
+  if (!id) return { ok: false, why: '未知状态词：' + label };
+  const o = opts.cfg || options();
+  if (o.enabled === false) return { ok: false, why: 'disabled' };
+  const t = Number(opts.now) || Date.now();
+  const st = loadState(t);
+  if (st && st.paused) return { ok: false, why: 'paused' };
+  try {
+    const rs = require('./risk.js').status(t);
+    if (rs && rs.level && rs.level !== 'normal') return { ok: false, why: '风控中：' + rs.level };
+  } catch (e) { /* 没有风控模块就放行 */ }
+  return setById(id, { ...opts, cfg: o, now: t });
+}
+
 function status(opts = {}) {
   const t = Number(opts.now) || Date.now();
   const st = loadState(t);
@@ -359,7 +391,7 @@ function main() {
 }
 if (require.main === module) main();
 
-module.exports = {
+module.exports = { STATUS_WORDS, statusOfWord, setByLabel,
   DEFAULTS, BASE, MOODS, loadCfg, configure, options, CFG_PATH, dirOf, stateFile, logFile,
   blankState, loadState, saveState, dayKey, appendLog, mapStatus, readSignals, consider, setById, status, reset
 };

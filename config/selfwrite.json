@@ -1,0 +1,22 @@
+{
+  "enabled": true,
+  "preset": "auto",
+  "allow": [
+    "ties",
+    "note",
+    "mood",
+    "tag",
+    "want",
+    "pref"
+  ],
+  "dailyMax": 20,
+  "maxNotesPerDay": 10,
+  "noteMaxChars": 60,
+  "requireEvidenceForLover": true,
+  "keepAudit": 200,
+  "_note": "模型自主写文件的受控通道（第一批：关系）。auto=允许写；readonly=只审计不落盘。升到「恋人」必须有对方的明确表达，且全局唯一位不能被抢。",
+  "_markers": "[[关系:恋人]] / [[记下:内容]] / [[心情:…]] / [[印象:…]] / [[想做:…]] / [[偏好:…]]，括号宽容，分隔符 : ： = 都认",
+  "_undo": "node scripts/selfwrite.js undo 可撤回上一次关系写入",
+  "_prefNote": "[[偏好:…]] 是模型给自己定的相处小规矩，会注入下一轮 prompt；不想给这个权限就从 allow 里删掉 pref",
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
+}

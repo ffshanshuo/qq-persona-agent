@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "dailyMaxChanges": 20,
+  "dailyMaxExperiments": 4,
+  "evolveEveryMin": 90,
+  "maxProposalsPerRun": 3,
+  "experimentWindowHours": 6,
+  "charterMaxLines": 60,
+  "charterMaxChars": 4000,
+  "ruleStepRatio": 0.25,
+  "keepIfDeltaRatio": 0.05,
+  "minBaselineSamples": 20,
+  "dry": false,
+  "_note": "自我修改层：模型可以改 config 白名单参数、写自己的规矩（charter），但不能碰账号安全（risk/token/通道）与代码；每次改动有快照，可 undo。",
+  "_why": "用户 2026-10-28：「给回复AI所有的反作用于自身的渠道…可全由回复AI后期自主给自己渐渐修改规则，以求达到自进化的目的」",
+  "_limits": "LOCKED_PREFIXES 永不开放；数值受上下界与「单次≤25% 或一个台阶」约束；每天上限 20 次；实验到期自动评估，没改善回滚。",
+  "_exampleNote": "示例配置：账号/群/白名单均为占位值，使用前请替换"
+}

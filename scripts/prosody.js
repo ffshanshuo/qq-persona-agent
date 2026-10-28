@@ -30,8 +30,30 @@ function clampNum(n, lo, hi) { const x = Number(n) || 0; return Math.max(lo, Mat
  * @param {{mood?:string,pad?:{p:number,a:number},mode?:string,echo?:object,tie?:string,hour?:number,random?:Function,text?:string}} s
  * @returns {{tone:string,rate:string,pitch:string,volume:string,why:string}}
  */
+// 模型可以自己指定语气（[[语气:温柔]] 之类）：进来就照它的来，不再由规则替它挑
+const TONE_WORDS = {
+  温柔: 'comfort', 安慰: 'comfort', 关心: 'comfort', 心疼: 'comfort', 哄: 'comfort',
+  开心: 'playful', 逗: 'playful', 俏皮: 'playful', 玩笑: 'playful', 打趣: 'playful',
+  撒娇: 'clingy', 黏: 'clingy', 亲昵: 'clingy',
+  困: 'sleepy', 疲惫: 'sleepy', 累: 'sleepy', 低声: 'sleepy', 小声: 'sleepy',
+  认真: 'serious', 严肃: 'serious', 正经: 'serious', 郑重: 'serious',
+  兴奋: 'excited', 激动: 'excited', 高兴: 'excited',
+  温暖: 'warm', 暖: 'warm', 平常: 'neutral', 平静: 'neutral', 正常: 'neutral'
+};
+function toneOfWord(w) {
+  const k = String(w || '').trim();
+  if (!k) return null;
+  return PROSODY[k] ? k : (TONE_WORDS[k] || null);
+}
+function byTone(w) {
+  const t = toneOfWord(w);
+  if (!t) return null;
+  return { ...PROSODY[t], tone: t, by: "model" };
+}
+
 function prosodyFor(s) {
   const o = s || {};
+  if (o.tone && PROSODY[o.tone]) return { ...PROSODY[o.tone], tone: o.tone, by: 'model', why: o.why || '模型自己挑的语气' };
   const pad = o.pad || {};
   const mood = String(o.mood || '');
   const mode = String(o.mode || '');
@@ -127,4 +149,4 @@ function voiceFor(s) {
   const v = pool[idx] || pool[0];
   return { voice: v, switched: v !== pool[0], why: v === pool[0] ? '保持主音色' : '换个嗓音，别每次一个调' };
 }
-module.exports = { PROSODY, VOICE_POOL, prosodyFor, voiceFor, paceText, fmtPct, fmtHz, estimateSeconds, clampNum };
+module.exports = { PROSODY, TONE_WORDS, VOICE_POOL, toneOfWord, byTone, prosodyFor, voiceFor, paceText, fmtPct, fmtHz, estimateSeconds, clampNum };

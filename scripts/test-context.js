@@ -14,6 +14,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const TMP = path.join(ROOT, 'logs', 'context-test');
+process.env.BRAIN_CONFIG = path.join(__dirname, '..', 'config', 'brain.test-long.json');
 process.env.QQCTX_DIR = TMP;
 process.env.QQMODE_DIR = __dirname + '/../logs/mode-context-test';
 process.env.QQRISK_DIR = __dirname + '/../logs/risk-context-test';

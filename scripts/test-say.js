@@ -127,11 +127,11 @@ const evt = (text, extra) => ({
   ok('摘掉后不塌成空', f.text.replace(/[^\u4e00-\u9fa5]/g, '').length >= 2, f.text);
   ok('fix 报告 changed', f.changed === true);
 
-  f = say.fix('1. 早点睡\n2. 多喝水\n3. 别熬夜');
+  f = say.fix('1. 早点睡\n2. 多喝水\n3. 别熬夜', { cfg: { keepList: false } });
   ok('清单拍平成一句话', !/\n/.test(f.text) && /早点睡/.test(f.text) && /别熬夜/.test(f.text), f.text);
   ok('拍平后像一句人话', /^[^0-9]/.test(f.text), f.text);
 
-  f = say.fix('😄😄😄 好呀');
+  f = say.fix('😄😄😄 好呀', { cfg: { emojiMax: 2 } });
   ok('重复表情去重', (f.text.match(/😄/g) || []).length === 1, f.text);
 
   f = say.fix('作为一个AI，我无法感受这些');

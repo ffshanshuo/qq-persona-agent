@@ -39,6 +39,11 @@ const BLOCKS = [
     'files': ['scripts/watchdog.js'], 'cfg': ['risk.json'], 'log': 'watchdog.log', 'probe': 'watchdog'
   },
   {
+    'id': 'selfmod', 'layer': '自进化', 'name': '自我修改 selfmod（自己改规则）',
+    'role': '可以改自己的参数、写自己的规矩：白名单 + 上下界 + 每天额度 + 快照可回滚；改完开实验，观察窗口结束按指标留或撤。账号安全与代码永不开放。',
+    'files': ['scripts/selfmod.js'], 'cfg': ['selfmod.json'], 'log': 'selfmod/', 'probe': 'selfmod'
+  },
+  {
     'id': 'collector', 'layer': '入口与运维', 'name': '事件收集 collector',
     'role': '把 WebSocket 事件落到 logs/inbox.jsonl，断线自动重连；用于回看「刚才都有谁找过」。',
     'files': ['scripts/collector.js'], 'log': 'inbox.jsonl', 'probe': 'collector'
@@ -52,6 +57,11 @@ const BLOCKS = [
     'id': 'timers', 'layer': '入口与运维', 'name': '后台定时器 timers',
     'role': '四件「没人说话时也要发生的事」：空闲巩固、想念调度、参数进化、头像轮换。',
     'files': ['scripts/timers.js'], 'cfg': ['mind.json', 'longing.json', 'evolve.json', 'avatar.json'], 'log': 'autoreply.log', 'probe': 'timers'
+  },
+  {
+    'id': 'watch', 'layer': '主动与承诺', 'name': '盯着话头 watch',
+    'role': '话头悬着没人接时自己追问：我问了 TA 没回、TA 问了没下文，隔 20 分钟~12 小时之间把话接回去（每条只追一次）。',
+    'files': ['scripts/watch.js'], 'cfg': ['watch.json'], 'log': 'watch/', 'probe': 'watch'
   },
   {
     'id': 'qq', 'layer': '通道与协议', 'name': 'OneBot 客户端 qq.js',
@@ -219,6 +229,16 @@ const BLOCKS = [
     'files': ['scripts/group.js'], 'cfg': ['group.json'], 'log': 'group/', 'probe': 'group'
   },
   {
+    'id': 'autonomy', 'layer': '安全与节奏', 'name': '自主权 autonomy.js',
+    'role': '模型可以提议「这次不回 / 慢点回 / 很快回 / 引用一句旧话」，由这层审批：问事、求助、@我、催、久别第一句一律不许不回，还有每人每天额度与间隔。',
+    'files': ['scripts/autonomy.js'], 'cfg': ['autonomy.json'], 'log': 'autonomy.jsonl', 'probe': 'autonomy'
+  },
+  {
+    'id': 'selfwrite', 'layer': '安全与节奏', 'name': '自主写文件 selfwrite.js',
+    'role': '模型自己写文件（第一批：关系）——标记是 [[关系:恋人]] / [[记下:…]]，落盘前过白名单、额度、恋爱凭据与恋人唯一性，改动可 undo 回滚。',
+    'files': ['scripts/selfwrite.js'], 'cfg': ['selfwrite.json'], 'log': 'selfwrite.jsonl', 'probe': 'selfwrite'
+  },
+  {
     'id': 'evolve', 'layer': '自进化', 'name': '参数进化 evolve.js',
     'role': '从真实对话统计「判冷是不是判太狠」，按小步长自动调阈值与词表；改动有边界、有历史、可一键回滚。',
     'files': ['scripts/evolve.js'], 'cfg': ['evolve.json', 'tuning.json'], 'log': 'evolve/', 'probe': 'evolve'
@@ -351,6 +371,36 @@ const PROBES = {
       }
     };
   },
+  autonomy() {
+    const st = safe(() => require('./autonomy.js').status(), null);
+    if (!st) return { 'badge': 'bad', 'facts': { '状态': '读取失败' } };
+    const c = st.counters || {};
+    const caps = st.caps || {};
+    const last = (st.decisions || [])[0];
+    return {
+      'badge': st.enabled ? 'ok' : 'idle',
+      'facts': {
+        '今天跳过': (c.skip || 0) + ' / ' + (caps.skip ?? '—') + ' 次',
+        '今天慢回': (c.slow || 0) + ' / ' + (caps.slow ?? '—') + ' 次',
+        '今天引用': (c.quote || 0) + ' / ' + (caps.quote ?? '—') + ' 次',
+        '最近一次': last ? ((last.action === 'skip' ? '选择不回' : last.action) + (last.why ? '（' + last.why + '）' : '')) + ' · ' + ageText(last.t) : '—'
+      }
+    };
+  },
+  selfwrite() {
+    const st = safe(() => require('./selfwrite.js').status(), null);
+    if (!st) return { 'badge': 'bad', 'facts': { '状态': '读取失败' } };
+    const last = (st.recent || [])[0];
+    return {
+      'badge': st.enabled ? 'ok' : 'idle',
+      'facts': {
+        '模式': st.preset === 'readonly' ? '只审计（只读）' : '可写',
+        '今天写入': (st.count || 0) + ' / ' + ((st.caps && st.caps.dailyMax) || '—') + ' 次',
+        '随手记': (st.notes || 0) + ' / ' + ((st.caps && st.caps.maxNotesPerDay) || '—') + ' 条',
+        '最近一次': last ? (last.kind + ': ' + (last.from || '?') + ' → ' + (last.to || '?')) + ' · ' + ageText(last.t) : '—'
+      }
+    };
+  },
   watchdog() {
     const lines = tail('logs/watchdog.log', 6);
     const alive = safe(() => procs().watchdog.length > 0, false);
@@ -375,6 +425,40 @@ const PROBES = {
       seen[n] = ev ? Math.round((Date.now() - ev.t) / 60000) + ' 分钟前' : '未见';
     }
     return { 'badge': 'ok', 'facts': seen };
+  },
+  selfmod() {
+    const sm = mod('selfmod');
+    if (!sm) return { badge: 'warn', facts: { 状态: '模块未加载' } };
+    const st = safe(() => sm.status(), null);
+    if (!st) return { badge: 'warn', facts: { 状态: '读取失败' } };
+    const recent = (st.recent || []).slice(0, 3).map((r) => (r.key || r.kind || ''));
+    return {
+      badge: st.enabled ? (st.running ? 'ok' : 'idle') : 'idle',
+      facts: {
+        自己写的规矩: st.charterLines + ' 条',
+        今天改动: st.todayChanges + ' / ' + st.dailyMaxChanges + ' 次',
+        进行中实验: st.running + ' 个',
+        可改参数: st.registrySize + ' 个',
+        最近改动: recent.join('、') || '（还没有）'
+      }
+    };
+  },
+  watch() {
+    const w = mod('watch');
+    if (!w) return { 'badge': 'warn', 'facts': { '状态': '模块未加载' } };
+    const rows = safe(() => w.list(), []);
+    const open = rows.reduce((n, r) => n + (r.open || 0), 0);
+    const followed = rows.reduce((n, r) => n + (r.followed || 0), 0);
+    const last = rows.filter(r => r.lastFollowAt).sort((a, b) => b.lastFollowAt - a.lastFollowAt)[0];
+    return {
+      'badge': open ? 'ok' : 'idle',
+      'facts': {
+        '悬着的话头': open + ' 条',
+        '已追问': followed + ' 次',
+        '有记录的会话': rows.length + ' 个',
+        '上次追问': last ? Math.round((Date.now() - last.lastFollowAt) / 60000) + ' 分钟前' : '还没追过'
+      }
+    };
   },
   qq() {
     const idx = readJson(path.join(ROOT, 'assets', 'stickers', 'index.json'));

@@ -30,7 +30,8 @@ const DEFAULTS = {
   translateRe: '的话，|进行一个|对于.{1,8}来说，.{0,6}是|首先.{0,30}其次|总而言之|综上所述|需要注意的是',
   // 长度上限的宽容倍数（超过 style.maxChars 这个倍数才判超长）
   overLongFactor: 1.6,
-  emojiMax: 2,
+  emojiMax: 0,
+  keepList: true,
   // 需要重写（字符串清不干净）的问题
   retryCodes: ['assistant', 'meta', 'list', 'translate'],
   logBad: true,
@@ -126,8 +127,10 @@ function fix(text, opts = {}) {
   const rep = inspect(s, opts);
 
   s = stripStrayEn(s, cfg);
-  if (rep.issues.some((x) => x.code === 'list')) s = flattenList(s);
-  s = trimEmoji(s, Number(cfg.emojiMax) || 2);
+  // 2026-10-27 用户要求别过度干预模型自主性：清单不再默认拍平（要恢复就 keepList:false），表情数不再默认截断（emojiMax:0=不限）
+  if (cfg.keepList !== true && rep.issues.some((x) => x.code === 'list')) s = flattenList(s);
+  const emojiCap = Number(cfg.emojiMax);
+  if (Number.isFinite(emojiCap) && emojiCap > 0) s = trimEmoji(s, emojiCap);
   s = s.replace(/\n{2,}/g, '\n').replace(/[ \t]{2,}/g, ' ').trim();
   // 中英混杂被摘掉后可能留下"收到  👍 "这种空隙
   s = s.replace(/\s+([，。！？~～、；：])/g, '$1').replace(/[，、]\s*([。！？~～])/g, '$1');

@@ -400,6 +400,12 @@ function recall(key, query, opts = {}) {
     catch (e) { return st0; }
   })();
   const g = loadGraph(key);
+  // 「忘掉」＝不主动提（muted）：默认跳过；opts.includeMuted（被提醒）时才参与召回
+  const _all = (g.nodes || []).filter((n) => !(n && n.forgotten));
+  const _kept = o.includeMuted === true ? _all : _all.filter((n) => !(n && n.muted));
+  const _ids = new Set(_kept.map((n) => n.id));
+  g.nodes = _kept;
+  g.edges = (g.edges || []).filter((e) => e && _ids.has(e.a) && _ids.has(e.b));
   const now = Date.now();
   const q = String(query || '');
   const byId = new Map(g.nodes.map(n => [n.id, n]));
@@ -617,14 +623,38 @@ async function afterTurn(key, info = {}) {
 }
 
 // ── 便捷：给 brain 的 ctx 里塞的那几段 ───────────────────────────────────
+/** 被提醒检查：TA 这句话里提到了我「不主动提」的哪几条记忆 */
+function mutedMatches(key, text) {
+  const q = String(text || '');
+  if (!q) return [];
+  let g;
+  try { g = loadGraph(key); } catch (e) { return []; }
+  const out = [];
+  for (const n of (g.nodes || [])) {
+    if (!n || !n.muted || !n.text) continue;
+    const kw = String(n.muteKeyword || '').trim();
+    if (!kw) continue;
+    if (q.includes(kw)) out.push({ id: n.id, text: String(n.text).slice(0, 120), keyword: kw });
+  }
+  return out;
+}
+
 function promptBits(key, query, opts = {}) {
-  const rec = recall(key, query, opts);
+  // 被提醒：TA 自己提到那个关键词时，才把 muted 的记忆取回来（只是不主动提，不是删掉）
+  let reminded = [];
+  let o = opts;
+  try {
+    const hit = mutedMatches(key, query);
+    if (hit.length) { reminded = hit; o = { ...opts, includeMuted: true }; }
+  } catch (e) { /* 忽略，退回普通召回 */ }
+  const rec = recall(key, query, o);
   const st = rec.state;
   return {
     mood: rec.mood || (st ? describeMood(st).text : ''),
     bond: rec.bond || (st ? describeBond(st).text : ''),
     memories: rec.memories || [],
     picked: rec.picked || [],
+    reminded,
     state: st
   };
 }
