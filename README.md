@@ -33,6 +33,7 @@
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 从代码自动生成的层↔文件↔依赖图（`node scripts/arch.js` 可重生成） |
 | [docs/RISK-AND-COMPLIANCE.md](docs/RISK-AND-COMPLIANCE.md) | 第三方客户端的真实风控事件与合规边界 |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | 已完成 / 待做 / 明确不做的 |
+| [CHANGELOG.md](CHANGELOG.md) | 每次发布的变更记录（2.0 / 1.x / 1.0） |
 
 ---
 
